@@ -346,14 +346,66 @@ SNOWFLAKE_DATABASE=
 SNOWFLAKE_SCHEMA=
 
 # APIs
-CLAUDE_API_KEY=
-SENATE_LDA_API_KEY=
-REGULATIONS_GOV_API_KEY=
+ANTHROPIC_API_KEY=              # Required for LLM extraction
+REGULATIONS_GOV_API_KEY=        # Future: for regulations.gov API
 ```
 
 ---
 
-## Project Structure (Target)
+## Scripts
+
+### Extraction Scripts (`include/scripts/extraction/`)
+
+**`extract_pdf_submissions.py`** - PDF text extraction
+- Reads PDFs from `data/90-fr-9088-combined-responses/`
+- Extracts text using PyMuPDF
+- Chunks text (800 words, 100 word overlap)
+- Writes to Iceberg: `ai_submissions_metadata`, `ai_submissions_text`, `ai_submissions_chunks`
+- Idempotent via `overwrite()` - safe to re-run
+
+**`extract_lda_filings.py`** - Senate LDA lobbying data
+- Fetches filings from `https://lda.senate.gov/api/v1/`
+- Normalizes nested JSON into 3 tables
+- Writes to Iceberg: `lda_filings`, `lda_activities`, `lda_lobbyists`
+- Idempotent via `overwrite()` - safe to re-run
+
+### Agentic Scripts (`include/scripts/agentic/`)
+
+**`extract_positions.py`** - LLM position extraction
+- Reads unprocessed chunks from `ai_submissions_chunks`
+- Sends to Claude API with position extraction prompt
+- Writes to Iceberg: `ai_positions`
+- **Idempotent**: Tracks processed chunk_ids, uses `append()` not `overwrite()`
+- **Incremental**: Safe to run multiple times, only processes new chunks
+- **Rate limited**: 1 second delay between API calls
+- **Retry logic**: 3 retries with 5 second backoff
+
+```bash
+# Usage
+./venv/bin/python include/scripts/agentic/extract_positions.py           # Process all
+./venv/bin/python include/scripts/agentic/extract_positions.py --limit=10  # Process 10
+./venv/bin/python include/scripts/agentic/extract_positions.py --dry-run   # Preview only
+```
+
+### Exploration Scripts (`include/scripts/exploration/`)
+
+**`explore_lda_api.py`** - Quick LDA API exploration
+- Queries multiple companies, reports summary stats
+
+### Utility Scripts (`include/scripts/utils/`)
+
+**`check_progress.py`** - Progress report across all tables
+- Shows row counts for all Iceberg tables
+- Shows position extraction progress (chunks processed vs total)
+- Breaks down positions by submitter
+
+```bash
+./venv/bin/python include/scripts/utils/check_progress.py
+```
+
+---
+
+## Project Structure
 
 ```
 ai-influence-monitor/
@@ -364,7 +416,15 @@ ai-influence-monitor/
 │   └── INSIGHTS.md              # Findings and observations
 ├── include/
 │   └── scripts/
-│       └── extract_pdf_submissions.py
+│       ├── extraction/          # Data loading scripts
+│       │   ├── extract_pdf_submissions.py
+│       │   └── extract_lda_filings.py
+│       ├── agentic/             # LLM-powered extraction
+│       │   └── extract_positions.py
+│       ├── exploration/         # API exploration / research
+│       │   └── explore_lda_api.py
+│       └── utils/               # Helper scripts
+│           └── check_progress.py
 ├── queries/                     # SQL for Trino exploration
 ├── dags/                        # Airflow DAGs (future)
 ├── dbt/                         # dbt project (future)

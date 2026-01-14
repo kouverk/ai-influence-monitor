@@ -185,6 +185,26 @@ Individual lobbyists per activity - one row per person.
 
 **Current data (Jan 2025):** 110 filings, 236 activities, 624 lobbyists (OpenAI, Anthropic, Nvidia)
 
+### `ai_positions`
+LLM-extracted policy positions - multiple rows per chunk.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `position_id` | STRING (PK) | `{chunk_id}_{position_index}` |
+| `chunk_id` | STRING | FK to ai_submissions_chunks |
+| `document_id` | STRING | FK to ai_submissions_metadata |
+| `submitter_name` | STRING | Company/org name |
+| `submitter_type` | STRING | `ai_lab`, `big_tech`, `trade_group`, etc. |
+| `topic` | STRING | Policy topic category (see Topic Categories below) |
+| `stance` | STRING | `strong_support`, `support`, `neutral`, `oppose`, `strong_oppose` |
+| `supporting_quote` | STRING | Direct quote from document (≤50 words) |
+| `confidence` | DOUBLE | LLM confidence score (0.0-1.0) |
+| `model` | STRING | Model used for extraction (e.g., `claude-sonnet-4-20250514`) |
+| `processed_at` | TIMESTAMP | When extraction ran |
+
+**Extraction script:** `include/scripts/agentic/extract_positions.py`
+**Status:** ✅ Table created, extraction in progress
+
 ---
 
 ## Snowflake Tables (Analytics Layer)
