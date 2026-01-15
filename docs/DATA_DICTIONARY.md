@@ -215,7 +215,7 @@ Individual lobbyists per activity - one row per person.
 **Current data (Jan 2025):** 110 filings, 236 activities, 624 lobbyists (OpenAI, Anthropic, Nvidia)
 
 ### `ai_positions`
-LLM-extracted policy positions - multiple rows per chunk.
+LLM-extracted **policy asks** - specific things companies want the government to do (or not do).
 
 | Column | Type | Description |
 |--------|------|-------------|
@@ -224,21 +224,88 @@ LLM-extracted policy positions - multiple rows per chunk.
 | `document_id` | STRING | FK to ai_submissions_metadata |
 | `submitter_name` | STRING | Company/org name |
 | `submitter_type` | STRING | `ai_lab`, `big_tech`, `trade_group`, etc. |
-| `topic` | STRING | Policy topic category (see Topic Categories below) |
-| `stance` | STRING | `strong_support`, `support`, `neutral`, `oppose`, `strong_oppose` |
+| `policy_ask` | STRING | Specific policy action requested (see Policy Ask Taxonomy below) |
+| `ask_category` | STRING | High-level grouping: `regulatory_structure`, `accountability`, `intellectual_property`, `national_security`, `resources`, `other` |
+| `stance` | STRING | `support`, `oppose`, `neutral` |
+| `target` | STRING | Specific regulation/bill being referenced (e.g., "California SB 1047", "EU AI Act"), or null |
+| `primary_argument` | STRING | Main argument for position (see Argument Types below) |
+| `secondary_argument` | STRING | Optional second argument, or null |
 | `supporting_quote` | STRING | Direct quote from document (≤50 words) |
 | `confidence` | DOUBLE | LLM confidence score (0.0-1.0) |
 | `model` | STRING | Model used for extraction (e.g., `claude-sonnet-4-20250514`) |
 | `processed_at` | TIMESTAMP | When extraction ran |
 
 **Extraction script:** `include/scripts/agentic/extract_positions.py`
-**Status:** ✅ Complete - 607 positions extracted from 112 chunks (17 priority companies)
+**Status:** ✅ Complete - 633 positions extracted from 112 chunks (17 priority companies)
 
 **Extraction stats (Jan 2025):**
-- Total positions: 607
-- Avg positions/chunk: 5.4
+- Total positions: 633
+- Avg positions/chunk: 5.9
 - Model: claude-sonnet-4-20250514
-- Notable: 94 positions on `china_competition` topic
+
+**Top policy asks:**
+| Policy Ask | Count |
+|------------|-------|
+| government_ai_adoption | 70 |
+| research_funding | 43 |
+| international_harmonization | 40 |
+| federal_preemption | 31 |
+| existing_agency_authority | 30 |
+| workforce_training | 30 |
+| training_data_fair_use | 27 |
+| self_regulation | 26 |
+
+**Top arguments used:**
+| Argument | Count |
+|----------|-------|
+| competitiveness | 223 |
+| national_security | 87 |
+| innovation_harm | 87 |
+| china_competition | 55 |
+| patchwork_problem | 39 |
+
+### `lobbying_impact_scores`
+LLM-assessed public interest implications of corporate lobbying - THE KEY ANALYSIS TABLE.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `score_id` | STRING (PK) | `{company_name}_{timestamp}` |
+| `company_name` | STRING | Canonical company name |
+| `company_type` | STRING | `ai_lab`, `big_tech`, `trade_group` |
+| `concern_score` | INT | 0-100 (0=public interest aligned, 100=critical concern) |
+| `lobbying_agenda_summary` | STRING | 2-3 sentence summary of what they're lobbying for |
+| `public_interest_concerns` | STRING (JSON) | Array of specific concerns with evidence, who_harmed, severity |
+| `regulatory_capture_signals` | STRING (JSON) | Signs they're shaping regulations for self-benefit |
+| `safety_vs_profit_tensions` | STRING (JSON) | Areas where lobbying prioritizes profit over safety |
+| `positive_aspects` | STRING (JSON) | Any lobbying genuinely serving public interest |
+| `key_flags` | STRING (JSON) | Red flags for journalists/regulators/public |
+| `positions_count` | INT | Number of policy positions analyzed |
+| `lobbying_filings_count` | INT | Number of LDA filings analyzed |
+| `model` | STRING | Model used (e.g., `claude-sonnet-4-20250514`) |
+| `processed_at` | TIMESTAMP | When assessment ran |
+
+**Assessment script:** `include/scripts/agentic/assess_lobbying_impact.py`
+**Status:** ✅ Complete - 10 companies assessed
+
+**Results (Jan 2025):**
+| Company | Type | Concern Score |
+|---------|------|---------------|
+| Google | ai_lab | 75/100 |
+| OpenAI | ai_lab | 72/100 |
+| Amazon | big_tech | 72/100 |
+| Palantir | big_tech | 72/100 |
+| TechNet | trade_group | 72/100 |
+| CCIA | trade_group | 72/100 |
+| US-Chamber | trade_group | 72/100 |
+| IBM | big_tech | 68/100 |
+| Adobe | big_tech | 68/100 |
+| Anthropic | ai_lab | 45/100 |
+
+**Key findings:** Most companies score 68-75/100 (significant concerns). Common patterns:
+- Federal preemption to block state protections
+- Liability shields to avoid accountability
+- Self-regulation instead of external oversight
+- China competition rhetoric to justify reduced oversight
 
 ---
 
@@ -311,20 +378,100 @@ How `submitter_type` is assigned in extraction script:
 
 ---
 
-## Topic Categories (for LLM extraction)
+## Policy Ask Taxonomy (for LLM extraction)
 
-| Topic Code | Description |
-|------------|-------------|
-| `ai_safety` | AI risks, alignment, testing requirements |
-| `state_regulation` | Position on state-level AI laws (e.g., CA SB 1047) |
-| `federal_regulation` | Federal AI oversight/agencies |
-| `preemption` | Federal law preempting state laws |
-| `copyright` | Training data, fair use, IP |
-| `open_source` | Open vs closed model development |
-| `china_competition` | National security, competitiveness framing |
-| `export_controls` | Chip restrictions, model weight controls |
-| `liability` | Responsibility when AI causes harm |
-| `workforce` | Job displacement, retraining |
-| `research_funding` | Government R&D investment |
-| `energy_infrastructure` | Data centers, power grid |
+### Ask Categories
+
+| Category | Description |
+|----------|-------------|
+| `regulatory_structure` | How AI should be governed (federal vs state, new vs existing agencies) |
+| `accountability` | Liability, audits, transparency, incident reporting |
+| `intellectual_property` | Training data, copyright, open source |
+| `national_security` | Export controls, China competition, defense AI |
+| `resources` | Funding, infrastructure, immigration, workforce |
 | `other` | Doesn't fit above |
+
+### Policy Asks by Category
+
+**REGULATORY STRUCTURE:**
+| Policy Ask | Description |
+|------------|-------------|
+| `federal_preemption` | Federal law should override state laws |
+| `state_autonomy` | States should be able to regulate |
+| `new_federal_agency` | Create new AI oversight body |
+| `existing_agency_authority` | Use existing agencies (FTC/FDA/etc) |
+| `self_regulation` | Industry-led standards without mandates |
+| `international_harmonization` | Align with EU/international standards |
+
+**ACCOUNTABILITY:**
+| Policy Ask | Description |
+|------------|-------------|
+| `liability_shield` | Protect developers from lawsuits |
+| `liability_framework` | Define who's responsible for AI harms |
+| `mandatory_audits` | Require third-party testing |
+| `voluntary_commitments` | Support industry self-commitments |
+| `transparency_requirements` | Mandate disclosures |
+| `incident_reporting` | Require breach/incident reporting |
+
+**INTELLECTUAL PROPERTY:**
+| Policy Ask | Description |
+|------------|-------------|
+| `training_data_fair_use` | Allow copyrighted data for training |
+| `creator_compensation` | Pay content creators |
+| `model_weight_protection` | Treat weights as trade secrets |
+| `open_source_mandate` | Require open models |
+| `open_source_protection` | Don't restrict open source |
+
+**NATIONAL SECURITY:**
+| Policy Ask | Description |
+|------------|-------------|
+| `export_controls_strict` | More chip/model restrictions |
+| `export_controls_loose` | Fewer restrictions |
+| `china_competition_frame` | Frame policy as beating China |
+| `government_ai_adoption` | More federal AI use |
+| `defense_ai_investment` | Military AI funding |
+
+**RESOURCES:**
+| Policy Ask | Description |
+|------------|-------------|
+| `research_funding` | Government R&D money |
+| `compute_infrastructure` | Data center support |
+| `energy_infrastructure` | Power grid for AI |
+| `immigration_reform` | AI talent visas |
+| `workforce_training` | Retraining programs |
+
+---
+
+## Argument Types (HOW companies justify their asks)
+
+**ECONOMIC:**
+| Argument | Description |
+|----------|-------------|
+| `innovation_harm` | "Kills startups/innovation" |
+| `competitiveness` | "Must stay ahead economically" |
+| `job_creation` | "Creates jobs" |
+| `cost_burden` | "Too expensive to comply" |
+
+**SECURITY:**
+| Argument | Description |
+|----------|-------------|
+| `china_competition` | "China will win if we don't" |
+| `national_security` | "Defense/security requires this" |
+| `adversary_benefit` | "Helps bad actors" |
+
+**PRACTICAL:**
+| Argument | Description |
+|----------|-------------|
+| `technical_infeasibility` | "Can't be done technically" |
+| `patchwork_problem` | "State-by-state is chaos" |
+| `duplicative` | "Already regulated elsewhere" |
+| `premature` | "Too early to regulate" |
+
+**RIGHTS/VALUES:**
+| Argument | Description |
+|----------|-------------|
+| `free_speech` | First Amendment concerns |
+| `consumer_protection` | Protect users |
+| `creator_rights` | Protect artists/creators |
+| `civil_liberties` | Privacy, bias, fairness |
+| `safety_concern` | AI safety/alignment risks |

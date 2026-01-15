@@ -60,6 +60,18 @@ def get_lda_client_names() -> list[str]:
     return [c["lda_name"] for c in get_all_companies()]
 
 
+def get_company_name_mapping() -> dict[str, dict]:
+    """Get mapping from PDF submitter name to LDA client name and metadata.
+
+    Returns:
+        dict: {submitter_name: {"lda_name": ..., "type": ...}}
+    """
+    return {
+        c["name"]: {"lda_name": c["lda_name"], "type": c["type"]}
+        for c in get_all_companies()
+    }
+
+
 def get_company_type(name: str) -> str:
     """Look up company type by name (case-insensitive)."""
     name_lower = name.lower()

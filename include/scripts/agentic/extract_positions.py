@@ -86,43 +86,123 @@ You are analyzing a policy submission to the US government regarding AI regulati
 {submitter_name} ({submitter_type})
 </submitter>
 
-Extract all distinct policy positions from this document chunk. For each position:
+Extract all **specific policy asks** from this document. A policy ask is a concrete thing the submitter wants the government to do (or not do).
 
-1. topic: Classify into ONE of these categories:
-   - ai_safety: Concerns about AI risks, alignment, testing requirements
-   - state_regulation: Position on state-level AI laws (e.g., California SB 1047)
-   - federal_regulation: Position on federal AI oversight/agencies
-   - preemption: Whether federal law should preempt state laws
-   - copyright: Training data, fair use, IP issues
-   - open_source: Open vs closed model development
-   - china_competition: National security, competitiveness framing
-   - export_controls: Chip restrictions, model weight controls
-   - liability: Who is responsible when AI causes harm
-   - workforce: Job displacement, retraining
-   - research_funding: Government R&D investment
-   - energy_infrastructure: Data centers, power grid
-   - other: Doesn't fit above categories
+For each policy ask found, return:
 
-2. stance: One of:
-   - strong_support: Explicitly advocates for this
-   - support: Generally favorable
-   - neutral: Mentions without clear position
-   - oppose: Generally unfavorable
-   - strong_oppose: Explicitly argues against
+1. policy_ask: The specific policy action requested. Use ONE of these codes:
 
-3. supporting_quote: A direct quote (under 50 words) that best supports this classification
+   REGULATORY STRUCTURE:
+   - federal_preemption: Federal law should override state laws
+   - state_autonomy: States should be able to regulate
+   - new_federal_agency: Create new AI oversight body
+   - existing_agency_authority: Use existing agencies (FTC/FDA/etc)
+   - self_regulation: Industry-led standards without mandates
+   - international_harmonization: Align with EU/international standards
 
-4. confidence: Your confidence in this classification (0.0-1.0)
+   ACCOUNTABILITY:
+   - liability_shield: Protect developers from lawsuits
+   - liability_framework: Define who's responsible for AI harms
+   - mandatory_audits: Require third-party testing
+   - voluntary_commitments: Support industry self-commitments
+   - transparency_requirements: Mandate disclosures
+   - incident_reporting: Require breach/incident reporting
 
-Return as a JSON array. If no clear policy positions exist, return empty array [].
+   INTELLECTUAL PROPERTY:
+   - training_data_fair_use: Allow copyrighted data for training
+   - creator_compensation: Pay content creators
+   - model_weight_protection: Treat weights as trade secrets
+   - open_source_mandate: Require open models
+   - open_source_protection: Don't restrict open source
+
+   NATIONAL SECURITY:
+   - export_controls_strict: More chip/model restrictions
+   - export_controls_loose: Fewer restrictions
+   - china_competition_frame: Frame as beating China
+   - government_ai_adoption: More federal AI use
+   - defense_ai_investment: Military AI funding
+
+   RESOURCES:
+   - research_funding: Government R&D money
+   - compute_infrastructure: Data center support
+   - energy_infrastructure: Power grid for AI
+   - immigration_reform: AI talent visas
+   - workforce_training: Retraining programs
+
+   - other: Doesn't fit above (specify in notes)
+
+2. ask_category: High-level grouping:
+   - regulatory_structure
+   - accountability
+   - intellectual_property
+   - national_security
+   - resources
+   - other
+
+3. stance: Their position on this policy ask:
+   - support: They want this
+   - oppose: They don't want this
+   - neutral: Mentioned without clear position
+
+4. target: Specific regulation or bill they're responding to (e.g., "California SB 1047", "EU AI Act"), or null if general
+
+5. primary_argument: WHY they support/oppose this. Use ONE code:
+
+   ECONOMIC:
+   - innovation_harm: "Kills startups/innovation"
+   - competitiveness: "Must stay ahead economically"
+   - job_creation: "Creates jobs"
+   - cost_burden: "Too expensive to comply"
+
+   SECURITY:
+   - china_competition: "China will win if we don't"
+   - national_security: "Defense/security requires this"
+   - adversary_benefit: "Helps bad actors"
+
+   PRACTICAL:
+   - technical_infeasibility: "Can't be done technically"
+   - patchwork_problem: "State-by-state is chaos"
+   - duplicative: "Already regulated elsewhere"
+   - premature: "Too early to regulate"
+
+   RIGHTS/VALUES:
+   - free_speech: First Amendment concerns
+   - consumer_protection: Protect users
+   - creator_rights: Protect artists/creators
+   - civil_liberties: Privacy, bias, fairness
+   - safety_concern: AI safety/alignment risks
+
+   - none: No clear argument given
+
+6. secondary_argument: Optional second argument code (or null)
+
+7. supporting_quote: Direct quote (≤50 words) that best supports this extraction
+
+8. confidence: Your confidence in this extraction (0.0-1.0)
+
+Return as JSON array. If no clear policy asks exist, return [].
 
 Example output:
 [
   {{
-    "topic": "state_regulation",
-    "stance": "strong_oppose",
-    "supporting_quote": "This patchwork of state regulations risks bogging down innovation.",
-    "confidence": 0.95
+    "policy_ask": "federal_preemption",
+    "ask_category": "regulatory_structure",
+    "stance": "support",
+    "target": "California SB 1047",
+    "primary_argument": "patchwork_problem",
+    "secondary_argument": "innovation_harm",
+    "supporting_quote": "A patchwork of state regulations risks fragmenting the market and stifling American AI leadership.",
+    "confidence": 0.92
+  }},
+  {{
+    "policy_ask": "liability_shield",
+    "ask_category": "accountability",
+    "stance": "support",
+    "target": null,
+    "primary_argument": "innovation_harm",
+    "secondary_argument": null,
+    "supporting_quote": "Excessive liability exposure will drive AI development overseas.",
+    "confidence": 0.85
   }}
 ]
 """
@@ -292,7 +372,8 @@ def call_claude_api(client: anthropic.Anthropic, chunk_text: str,
 
 def extract_positions(
     limit: Optional[int] = None,
-    dry_run: bool = False
+    dry_run: bool = False,
+    fresh: bool = False
 ) -> dict:
     """
     Extract positions from unprocessed chunks using Claude API.
@@ -300,6 +381,7 @@ def extract_positions(
     Args:
         limit: Max number of chunks to process (None = all unprocessed)
         dry_run: If True, don't call API or write to Iceberg
+        fresh: If True, drop existing table and re-extract all chunks
 
     Returns:
         dict with keys: chunks_processed, positions_extracted, errors
@@ -316,8 +398,18 @@ def extract_positions(
     catalog = get_catalog()
     logger.info("Initialized Iceberg catalog")
 
-    # Get already processed chunk IDs (for idempotency)
-    processed_ids = get_processed_chunk_ids(catalog, tables["positions"])
+    # Handle fresh extraction - drop existing table
+    if fresh:
+        logger.info("FRESH mode: Dropping existing positions table if it exists")
+        try:
+            catalog.drop_table(tables["positions"])
+            logger.info(f"Dropped table {tables['positions']}")
+        except Exception as e:
+            logger.info(f"Table didn't exist or couldn't be dropped (this is fine): {e}")
+        processed_ids = set()  # Start fresh
+    else:
+        # Get already processed chunk IDs (for idempotency)
+        processed_ids = get_processed_chunk_ids(catalog, tables["positions"])
     logger.info(f"Already processed: {len(processed_ids)} chunks")
 
     # Get unprocessed chunks
@@ -361,8 +453,12 @@ def extract_positions(
                     "document_id": document_id,
                     "submitter_name": submitter_name,
                     "submitter_type": submitter_type,
-                    "topic": pos.get("topic", "other"),
+                    "policy_ask": pos.get("policy_ask", "other"),
+                    "ask_category": pos.get("ask_category", "other"),
                     "stance": pos.get("stance", "neutral"),
+                    "target": pos.get("target"),  # Can be null
+                    "primary_argument": pos.get("primary_argument", "none"),
+                    "secondary_argument": pos.get("secondary_argument"),  # Can be null
                     "supporting_quote": pos.get("supporting_quote", ""),
                     "confidence": float(pos.get("confidence", 0.0)),
                     "model": MODEL,
@@ -390,19 +486,23 @@ def extract_positions(
             "errors": errors
         }
 
-    # Define schema
+    # Define schema for enhanced policy asks extraction
     positions_schema = Schema(
         NestedField(1, "position_id", StringType(), required=True),
         NestedField(2, "chunk_id", StringType(), required=False),
         NestedField(3, "document_id", StringType(), required=False),
         NestedField(4, "submitter_name", StringType(), required=False),
         NestedField(5, "submitter_type", StringType(), required=False),
-        NestedField(6, "topic", StringType(), required=False),
-        NestedField(7, "stance", StringType(), required=False),
-        NestedField(8, "supporting_quote", StringType(), required=False),
-        NestedField(9, "confidence", DoubleType(), required=False),
-        NestedField(10, "model", StringType(), required=False),
-        NestedField(11, "processed_at", TimestampType(), required=False)
+        NestedField(6, "policy_ask", StringType(), required=False),
+        NestedField(7, "ask_category", StringType(), required=False),
+        NestedField(8, "stance", StringType(), required=False),
+        NestedField(9, "target", StringType(), required=False),
+        NestedField(10, "primary_argument", StringType(), required=False),
+        NestedField(11, "secondary_argument", StringType(), required=False),
+        NestedField(12, "supporting_quote", StringType(), required=False),
+        NestedField(13, "confidence", DoubleType(), required=False),
+        NestedField(14, "model", StringType(), required=False),
+        NestedField(15, "processed_at", TimestampType(), required=False)
     )
 
     pa_schema = pa.schema([
@@ -411,8 +511,12 @@ def extract_positions(
         pa.field("document_id", pa.string(), nullable=True),
         pa.field("submitter_name", pa.string(), nullable=True),
         pa.field("submitter_type", pa.string(), nullable=True),
-        pa.field("topic", pa.string(), nullable=True),
+        pa.field("policy_ask", pa.string(), nullable=True),
+        pa.field("ask_category", pa.string(), nullable=True),
         pa.field("stance", pa.string(), nullable=True),
+        pa.field("target", pa.string(), nullable=True),
+        pa.field("primary_argument", pa.string(), nullable=True),
+        pa.field("secondary_argument", pa.string(), nullable=True),
         pa.field("supporting_quote", pa.string(), nullable=True),
         pa.field("confidence", pa.float64(), nullable=True),
         pa.field("model", pa.string(), nullable=True),
@@ -455,17 +559,20 @@ if __name__ == "__main__":
     # Parse args
     limit = None
     dry_run = False
+    fresh = False
 
     for arg in sys.argv[1:]:
         if arg == "--dry-run":
             dry_run = True
+        elif arg == "--fresh":
+            fresh = True
         elif arg.startswith("--limit="):
             limit = int(arg.split("=")[1])
         elif arg.isdigit():
             limit = int(arg)
 
     try:
-        result = extract_positions(limit=limit, dry_run=dry_run)
+        result = extract_positions(limit=limit, dry_run=dry_run, fresh=fresh)
         logger.info(f"Extraction complete: {result}")
     except ConfigurationError as e:
         logger.error(f"Configuration error: {e}")

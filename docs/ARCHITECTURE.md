@@ -122,7 +122,9 @@ discrepancy_recalc_dag
 
 ## LLM Prompts
 
-### Position Extraction Prompt
+### Policy Ask Extraction Prompt (ACTIVE)
+
+This prompt extracts **specific policy asks** - concrete things companies want the government to do. Each ask includes the policy action, stance, target regulation, and the arguments used to justify it.
 
 ```python
 POSITION_EXTRACTION_PROMPT = """
@@ -136,94 +138,104 @@ You are analyzing a policy submission to the US government regarding AI regulati
 {submitter_name} ({submitter_type})
 </submitter>
 
-Extract all distinct policy positions from this document. For each position:
+Extract all **specific policy asks** from this document. A policy ask is a concrete thing
+the submitter wants the government to do (or not do).
 
-1. topic: Classify into ONE of these categories:
-   - ai_safety: Concerns about AI risks, alignment, testing requirements
-   - state_regulation: Position on state-level AI laws (e.g., California SB 1047)
-   - federal_regulation: Position on federal AI oversight/agencies
-   - preemption: Whether federal law should preempt state laws
-   - copyright: Training data, fair use, IP issues
-   - open_source: Open vs closed model development
-   - china_competition: National security, competitiveness framing
-   - export_controls: Chip restrictions, model weight controls
-   - liability: Who is responsible when AI causes harm
-   - workforce: Job displacement, retraining
-   - research_funding: Government R&D investment
-   - energy_infrastructure: Data centers, power grid
-   - other: Doesn't fit above categories
+For each policy ask found, return:
 
-2. stance: One of:
-   - strong_support: Explicitly advocates for this
-   - support: Generally favorable
-   - neutral: Mentions without clear position
-   - oppose: Generally unfavorable
-   - strong_oppose: Explicitly argues against
+1. policy_ask: The specific policy action requested (see taxonomy in DATA_DICTIONARY.md)
+2. ask_category: High-level grouping (regulatory_structure, accountability, intellectual_property,
+   national_security, resources, other)
+3. stance: support, oppose, or neutral
+4. target: Specific regulation/bill being referenced (e.g., "California SB 1047"), or null
+5. primary_argument: WHY they support/oppose this (e.g., competitiveness, china_competition,
+   innovation_harm, patchwork_problem)
+6. secondary_argument: Optional second argument (or null)
+7. supporting_quote: Direct quote (≤50 words)
+8. confidence: 0.0-1.0
 
-3. supporting_quote: A direct quote (under 50 words) that best supports this classification
-
-4. confidence: Your confidence in this classification (0.0-1.0)
-
-Return as a JSON array. If no clear policy positions exist, return empty array [].
+Return as JSON array. If no clear policy asks exist, return [].
 
 Example output:
 [
   {
-    "topic": "state_regulation",
-    "stance": "strong_oppose",
-    "supporting_quote": "This patchwork of state regulations risks bogging down innovation and undermining America's competitive position.",
-    "confidence": 0.95
-  },
-  {
-    "topic": "china_competition",
-    "stance": "strong_support",
-    "supporting_quote": "American AI dominance is essential to national security and economic prosperity.",
-    "confidence": 0.88
+    "policy_ask": "federal_preemption",
+    "ask_category": "regulatory_structure",
+    "stance": "support",
+    "target": "California SB 1047",
+    "primary_argument": "patchwork_problem",
+    "secondary_argument": "innovation_harm",
+    "supporting_quote": "A patchwork of state regulations risks fragmenting the market.",
+    "confidence": 0.92
   }
 ]
 """
 ```
 
-### Discrepancy Scoring Prompt
+**Why this prompt matters:** The enhanced schema captures not just WHAT companies want, but WHY they say they want it. This enables queries like:
+- "Who uses China competition arguments to oppose regulation?"
+- "Which companies want liability shields?"
+- "What arguments are used against SB 1047?"
+
+### Lobbying Impact Assessment Prompt (ACTIVE)
+
+This is the key analysis prompt used by `assess_lobbying_impact.py`. Unlike a simple consistency check, it assesses **public interest implications** of corporate lobbying.
 
 ```python
-DISCREPANCY_SCORING_PROMPT = """
-Analyze consistency between a company's public policy statements and their lobbying activity.
+LOBBYING_IMPACT_PROMPT = """
+Assess the public interest implications of this company's AI policy lobbying.
 
-<company>{company_name}</company>
+<company>{company_name} ({company_type})</company>
 
-<public_positions>
+<public_policy_positions>
+These are positions the company submitted to the government's AI Action Plan RFI:
 {positions_json}
-</public_positions>
+</public_policy_positions>
 
 <lobbying_activity>
+These are their lobbying disclosure filings from the Senate LDA (what they're paying lobbyists to push):
 {lobbying_json}
 </lobbying_activity>
 
-Evaluate consistency and return JSON:
+Analyze what this company is actually trying to achieve through lobbying and assess the implications.
+
+Return JSON with these fields:
 
 {
-  "discrepancy_score": <0-100 integer>,
-  "reasoning": "<2-3 sentence explanation>",
-  "key_inconsistencies": [
+  "lobbying_agenda_summary": "<2-3 sentences: What is this company's overall lobbying agenda?>",
+  "concern_score": <0-100 integer - how concerning is this lobbying for public interest?>,
+  "public_interest_concerns": [
     {
-      "topic": "<topic>",
-      "public_stance": "<what they said>",
-      "lobbying_action": "<what they lobbied for/against>",
-      "severity": "<minor|moderate|major>"
+      "concern": "<specific concern>",
+      "evidence": "<quote or lobbying activity supporting this>",
+      "who_harmed": "<who could be negatively affected>",
+      "severity": "<low|medium|high|critical>"
     }
   ],
-  "consistent_areas": ["<topics where positions match lobbying>"]
+  "regulatory_capture_signals": ["<signs they're shaping regulations to benefit themselves>"],
+  "safety_vs_profit_tensions": ["<areas where lobbying prioritizes profit over safety>"],
+  "positive_aspects": ["<any lobbying that genuinely serves public interest>"],
+  "key_flags": ["<red flags journalists/regulators/public should know about>"]
 }
 
-Scoring guide:
-- 0-20: Highly consistent - lobbying aligns with stated positions
-- 21-40: Mostly consistent - minor gaps or ambiguities
-- 41-60: Mixed - some positions contradicted by lobbying
-- 61-80: Inconsistent - significant contradictions
-- 81-100: Highly inconsistent - lobbying directly opposes stated positions
+Scoring guide for concern_score:
+- 0-20: Lobbying appears aligned with public interest (rare)
+- 21-40: Minor concerns - mostly standard corporate advocacy
+- 41-60: Moderate concerns - some troubling patterns
+- 61-80: Significant concerns - lobbying could harm public
+- 81-100: Critical concerns - active efforts against public interest
+
+IMPORTANT analysis guidelines:
+- Don't just report what they said - analyze the IMPLICATIONS
+- "Opposing state regulation" isn't neutral - it means less oversight
+- "Preemption" means blocking states from protecting their citizens
+- "Self-regulation" means no external accountability
+- Liability shield requests mean victims can't seek recourse
+- Consider: If they get what they want, who benefits and who is harmed?
 """
 ```
+
+**Key insight:** The original "discrepancy scoring" approach was flawed - it just showed companies are consistent in messaging (which is expected). This reframed prompt asks the right questions: What are they lobbying for? Why is it concerning? Who gets harmed?
 
 ### China Rhetoric Classification Prompt (Planned)
 
@@ -428,6 +440,22 @@ REGULATIONS_GOV_API_KEY=        # Future: for regulations.gov API
 ./venv/bin/python include/scripts/agentic/extract_positions.py --dry-run   # Preview only
 ```
 
+**`assess_lobbying_impact.py`** - Lobbying impact assessment (THE KEY ANALYSIS!)
+- Joins `ai_positions` with `lda_filings` + `lda_activities` by company
+- Matches companies using `config.py` mapping (submitter_name → lda_name)
+- Sends paired data to Claude API with `LOBBYING_IMPACT_PROMPT`
+- Analyzes: What are they lobbying for? Who benefits/harmed? What's concerning?
+- Writes to Iceberg: `lobbying_impact_scores`
+- **Idempotent**: Tracks processed companies, uses `append()`
+- **Output fields**: concern_score (0-100), lobbying_agenda_summary, public_interest_concerns, regulatory_capture_signals, safety_vs_profit_tensions, key_flags
+
+```bash
+# Usage
+./venv/bin/python include/scripts/agentic/assess_lobbying_impact.py           # Process all
+./venv/bin/python include/scripts/agentic/assess_lobbying_impact.py --limit=1  # Process one
+./venv/bin/python include/scripts/agentic/assess_lobbying_impact.py --dry-run  # Preview matches
+```
+
 ### Exploration Scripts (`include/scripts/exploration/`)
 
 **`explore_lda_api.py`** - Quick LDA API exploration
@@ -461,7 +489,8 @@ ai-influence-monitor/
 │       │   ├── extract_pdf_submissions.py
 │       │   └── extract_lda_filings.py
 │       ├── agentic/             # LLM-powered extraction
-│       │   └── extract_positions.py
+│       │   ├── extract_positions.py
+│       │   └── assess_lobbying_impact.py
 │       ├── exploration/         # API exploration / research
 │       │   └── explore_lda_api.py
 │       └── utils/               # Helper scripts

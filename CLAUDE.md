@@ -56,25 +56,24 @@ A document intelligence pipeline that:
 | `kouverk.ai_submissions_metadata` | 17 | Document info (pages, words, size) |
 | `kouverk.ai_submissions_text` | 17 | Full extracted text |
 | `kouverk.ai_submissions_chunks` | 112 | Chunks for LLM processing |
-| `kouverk.ai_positions` | **607** | LLM-extracted policy positions ✅ |
+| `kouverk.ai_positions` | **633** | LLM-extracted policy asks ✅ |
 | `kouverk.lda_filings` | **339** | Lobbying quarterly filings (2023+, AI-relevant) |
 | `kouverk.lda_activities` | **869** | Issue codes + descriptions |
 | `kouverk.lda_lobbyists` | **2,586** | Individual lobbyists |
 
 **Companies processed:** OpenAI, Anthropic, Google, Meta, Microsoft, Amazon, Palantir, IBM, Adobe, Nvidia, Mistral, Cohere, CCIA, TechNet, BSA, ITI, BCBSA
 
-**Position breakdown:**
-- 94 positions on `china_competition` topic (see China Rhetoric Analysis below)
-- 5.4 avg positions per chunk
-- Topics: ai_safety, federal_regulation, state_regulation, preemption, copyright, open_source, etc.
+**Position breakdown (enhanced schema):**
+- 633 policy asks extracted with specific ask codes
+- 5.9 avg positions per chunk
+- Top policy asks: `government_ai_adoption` (70), `research_funding` (43), `international_harmonization` (40), `federal_preemption` (31)
+- Top arguments: `competitiveness` (223), `national_security` (87), `innovation_harm` (87), `china_competition` (55)
+- Schema now captures: policy_ask, ask_category, stance, target (specific regulation), primary_argument, secondary_argument
 
-**China Rhetoric Analysis** (new analysis angle):
-- 94 positions invoke China/competition framing
-- **Two distinct approaches:**
-  - **Rhetoric Analysis (PRIMARY):** Categorize *how* companies use China framing (all 94 positions)
-  - **Fact-Checking (OPTIONAL):** Verify *whether* specific claims are true (only verifiable claims, requires FARA/CSET)
-- Rhetoric analysis comes first because every claim can be categorized, but only some can be fact-checked
-- See [INSIGHTS.md](docs/INSIGHTS.md) for full framework and distinction
+**China Rhetoric Analysis:**
+- 55 positions use `china_competition` as primary argument
+- 8 positions explicitly frame policy as `china_competition_frame`
+- Enhanced schema enables queries like "Who uses China arguments to justify federal_preemption?"
 
 ### What's NOT Done
 - dbt models (transform layer)
