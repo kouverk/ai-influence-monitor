@@ -41,6 +41,10 @@ from pyiceberg.types import (
 import boto3
 from dotenv import load_dotenv
 
+# Add parent directory to path for config import
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from config import get_pdf_filter_names, classify_submitter_type
+
 
 # Configure logging for DAG consumption
 logging.basicConfig(
@@ -149,25 +153,9 @@ def parse_submitter_from_filename(filename: str) -> tuple[str, str]:
     # Remove extension and common suffixes
     name = filename.replace('.pdf', '').replace('-RFI-2025', '').replace('-AI-RFI-2025', '')
 
-    # Check if it's a numeric/anonymous submission
-    if name.startswith('AI-RFI-2025-') or name.startswith('AI-'):
-        return name, 'anonymous'
-
-    # Known company types
-    ai_labs = ['openai', 'anthropic', 'google', 'meta', 'mistralai', 'cohere', 'xai']
-    big_tech = ['microsoft', 'amazon', 'apple', 'nvidia', 'ibm', 'oracle', 'salesforce', 'palantir', 'adobe']
-    trade_groups = ['ccia', 'technet', 'bsa', 'iti', 'chamber', 'acc']
-
-    name_lower = name.lower().replace('-', '')
-
-    if any(lab in name_lower for lab in ai_labs):
-        return name, 'ai_lab'
-    elif any(tech in name_lower for tech in big_tech):
-        return name, 'big_tech'
-    elif any(group in name_lower for group in trade_groups):
-        return name, 'trade_group'
-    else:
-        return name, 'other'
+    # Use shared config for classification
+    submitter_type = classify_submitter_type(name)
+    return name, submitter_type
 
 
 def get_catalog():
@@ -226,12 +214,8 @@ def extract_pdf_submissions(
     catalog = get_catalog()
     logger.info("Initialized Iceberg catalog")
 
-    # Priority companies to process first
-    priority_companies = [
-        'OpenAI', 'Anthropic', 'Google', 'Meta', 'Microsoft', 'Amazon',
-        'MistralAI', 'Cohere', 'Palantir', 'Nvidia', 'IBM', 'Adobe',
-        'CCIA', 'TechNet', 'US-Chamber-of-Commerce', 'BSA'
-    ]
+    # Priority companies from shared config
+    priority_companies = get_pdf_filter_names()
 
     # Get list of PDF files
     pdf_path = Path(pdf_dir)

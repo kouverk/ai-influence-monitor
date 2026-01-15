@@ -24,6 +24,7 @@ import os
 import logging
 import time
 from datetime import datetime
+from pathlib import Path
 from typing import Optional
 
 import requests
@@ -41,6 +42,10 @@ from pyiceberg.types import (
 )
 import boto3
 from dotenv import load_dotenv
+
+# Add parent directory to path for config import
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from config import get_lda_client_names, LDA_MIN_YEAR, LDA_AI_ISSUE_CODES
 
 
 # Configure logging
@@ -109,25 +114,42 @@ def get_catalog():
     )
 
 
-def fetch_filings_for_client(client_name: str, exact_match: bool = True) -> list[dict]:
+def fetch_filings_for_client(
+    client_name: str,
+    exact_match: bool = True,
+    min_year: Optional[int] = None,
+    issue_codes: Optional[list[str]] = None
+) -> list[dict]:
     """
     Fetch all filings for a client from LDA API.
 
     Args:
         client_name: Company name to search for
         exact_match: If True, filter results to exact client name match
+        min_year: Only include filings from this year onward (default: from config)
+        issue_codes: Only include filings with these issue codes (default: from config)
 
     Returns:
         List of filing dictionaries
     """
+    # Use config defaults if not specified
+    if min_year is None:
+        min_year = LDA_MIN_YEAR
+    if issue_codes is None:
+        issue_codes = LDA_AI_ISSUE_CODES
+
     all_filings = []
     url = f"{LDA_BASE_URL}/filings/"
     params = {"client_name": client_name}
 
+    # Add year filter to API query if supported
+    if min_year:
+        params["filing_year__gte"] = min_year
+
     page = 1
     while url:
         try:
-            logger.info(f"Fetching page {page} for {client_name}...")
+            logger.info(f"Fetching page {page} for {client_name} (year >= {min_year})...")
             resp = requests.get(url, params=params if page == 1 else None, timeout=30)
             resp.raise_for_status()
             data = resp.json()
@@ -142,6 +164,26 @@ def fetch_filings_for_client(client_name: str, exact_match: bool = True) -> list
                     or client_name.upper() in f.get("client", {}).get("name", "").upper()
                 ]
 
+            # Filter by year (in case API doesn't support year filter)
+            if min_year:
+                results = [
+                    f for f in results
+                    if f.get("filing_year", 0) >= min_year
+                ]
+
+            # Filter by issue codes - keep filing if ANY activity has a matching code
+            if issue_codes:
+                filtered_results = []
+                for filing in results:
+                    activities = filing.get("lobbying_activities", [])
+                    has_ai_issue = any(
+                        act.get("general_issue_code") in issue_codes
+                        for act in activities
+                    )
+                    if has_ai_issue or not activities:  # Keep filings with no activities too
+                        filtered_results.append(filing)
+                results = filtered_results
+
             all_filings.extend(results)
 
             # Get next page URL
@@ -154,7 +196,7 @@ def fetch_filings_for_client(client_name: str, exact_match: bool = True) -> list
         except requests.exceptions.RequestException as e:
             raise LDAAPIError(f"Failed to fetch filings for {client_name}: {e}")
 
-    logger.info(f"Fetched {len(all_filings)} filings for {client_name}")
+    logger.info(f"Fetched {len(all_filings)} filings for {client_name} (year >= {min_year}, AI-relevant)")
     return all_filings
 
 
@@ -255,13 +297,9 @@ def extract_lda_filings(
     Returns:
         dict with keys: filings, activities, lobbyists, errors, tables
     """
-    # Default to AI labs (clean data, known entities)
+    # Default to all priority companies from shared config
     if companies is None:
-        companies = [
-            "OPENAI",
-            "ANTHROPIC",
-            "NVIDIA CORPORATION",
-        ]
+        companies = get_lda_client_names()
 
     # Get table names
     table_filings, table_activities, table_lobbyists = get_table_names()

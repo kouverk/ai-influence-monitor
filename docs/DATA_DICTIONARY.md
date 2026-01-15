@@ -12,7 +12,8 @@ Reference for all tables, columns, and data sources in this project.
 ## Data Sources
 
 ### Source 1: AI Action Plan RFI Submissions (PRIMARY)
-- **What:** Public responses to Trump administration's Request for Information on AI policy (90 FR 9088)
+- **What:** Public responses to Trump administration's Request for Information on AI policy
+- **Citation:** 90 FR 9088 (Volume 90, Federal Register, page 9088)
 - **Format:** 600MB zip of PDFs/docs
 - **Volume:** 10,068 documents
 - **Where:** `data/90-fr-9088-combined-responses/`
@@ -82,7 +83,35 @@ Reference for all tables, columns, and data sources in this project.
 - **Use case:** Track ongoing comment periods on AI regulations
 - **Status:** Not yet implemented
 
-### Source 6: Safety Researcher Statements (STRETCH)
+### Source 6: FARA Foreign Agents Database (FUTURE - CHINA RHETORIC)
+- **What:** DOJ database of foreign lobbying activity in the US
+- **Why:** Check if China actually lobbies on AI policy (vs companies just claiming "China threat")
+- **Format:** REST API (JSON) + bulk CSV download
+- **URL:** https://efile.fara.gov/
+- **API Docs:** https://efile.fara.gov/api/
+- **Bulk Data:** https://efile.fara.gov/bulk-data
+- **Key fields:** Foreign principal, registrant, activities, expenditures
+- **Use case:** Ground-truth data point for China rhetoric analysis
+- **Limitation:** Shows foreign lobbying in US, not China's domestic AI activity
+- **Status:** Not yet implemented
+
+### Source 7: Georgetown CSET China AI Data (FUTURE - CHINA RHETORIC)
+- **What:** Academic datasets on China's AI ecosystem from Georgetown's Center for Security and Emerging Technology
+- **Why:** Provides verifiable data on China AI capabilities to compare against company claims
+- **Format:** CSV/JSON datasets on GitHub
+- **URL:** https://github.com/georgetown-cset
+- **Key datasets:**
+  - Chinese AI company profiles
+  - AI talent flows (US↔China)
+  - Patent and publication analysis
+  - Government AI initiatives
+- **Use case:** Fact-check specific verifiable claims in submissions
+- **Limitation:** Academic research data, not real-time
+- **Status:** Not yet implemented
+
+**Note on China data sources:** Our primary analysis focuses on *how companies use China rhetoric* rather than proving/disproving China's capabilities. These sources provide optional ground-truth data for fact-checking specific verifiable claims. See [INSIGHTS.md](INSIGHTS.md) for the analysis approach.
+
+### Source 8: Safety Researcher Statements (STRETCH)
 - **What:** Public statements from AI safety researchers who left labs
 - **Format:** Scrape from Twitter/X, Substack, news articles
 - **Key people:** Jan Leike, Ilya Sutskever, Daniel Kokotajlo
@@ -203,7 +232,13 @@ LLM-extracted policy positions - multiple rows per chunk.
 | `processed_at` | TIMESTAMP | When extraction ran |
 
 **Extraction script:** `include/scripts/agentic/extract_positions.py`
-**Status:** ✅ Table created, extraction in progress
+**Status:** ✅ Complete - 607 positions extracted from 112 chunks (17 priority companies)
+
+**Extraction stats (Jan 2025):**
+- Total positions: 607
+- Avg positions/chunk: 5.4
+- Model: claude-sonnet-4-20250514
+- Notable: 94 positions on `china_competition` topic
 
 ---
 

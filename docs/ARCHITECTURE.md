@@ -225,6 +225,47 @@ Scoring guide:
 """
 ```
 
+### China Rhetoric Classification Prompt (Planned)
+
+```python
+CHINA_RHETORIC_PROMPT = """
+Analyze how this policy position uses China/competition framing.
+
+<position>
+{position_json}
+</position>
+
+<original_quote>
+{supporting_quote}
+</original_quote>
+
+Classify the China-related claim and return JSON:
+
+{
+  "claim_type": "<capability|regulatory_comparison|security_framing|vague_competitiveness>",
+  "specific_claim": "<one sentence describing what is being claimed about China>",
+  "verifiable": <true|false>,
+  "verification_approach": "<how this claim could be fact-checked, or 'unfalsifiable' if not possible>",
+  "regulation_opposed": "<specific regulation being argued against, or 'none' if general>",
+  "rhetorical_devices": ["<list of persuasion techniques used>"]
+}
+
+Claim type definitions:
+- capability: Claims about China's AI capabilities ("China will overtake us", "China is ahead")
+- regulatory_comparison: Claims about China's regulatory environment ("China doesn't regulate")
+- security_framing: National security arguments ("essential for defense", "strategic importance")
+- vague_competitiveness: Generic competition language without specific claims ("we must compete")
+
+Verifiability guide:
+- TRUE if claim references specific, checkable facts (publications, patents, laws, investments)
+- FALSE if claim is predictive, hypothetical, or uses unmeasurable concepts
+"""
+```
+
+**Purpose:** This prompt enables systematic analysis of how companies use "China threat" framing in policy arguments. The goal is to categorize rhetoric patterns, not to prove/disprove whether China is actually a threat.
+
+**See:** [INSIGHTS.md](INSIGHTS.md) for the full analysis framework.
+
 ---
 
 ## API Endpoints Reference

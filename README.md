@@ -144,6 +144,23 @@ This pipeline creates accountability by making the gaps visible and quantifiable
 
 ---
 
+## The China Rhetoric Analysis
+
+A key finding: **94 positions** in our dataset invoke "China competition" as a policy argument.
+
+**The question isn't "Is China a threat?"** - that's a massive geopolitical debate we can't resolve. Instead, we analyze **how companies use China framing** in their policy arguments:
+
+| Claim Type | Example | Verifiable? |
+|------------|---------|-------------|
+| Capability claims | "China will overtake us" | Partially - can check publications/patents |
+| Regulatory comparison | "China doesn't regulate AI" | Yes - can research Chinese AI laws |
+| Security framing | "National security requires X" | No - unfalsifiable |
+| Vague competitiveness | "We need to compete" | No - rhetorical |
+
+**The insight:** When companies invoke China to oppose specific regulations, we can flag whether their claims are verifiable or just rhetorical cover. This is document intelligence, not geopolitics.
+
+---
+
 ## Broader Application
 
 The same architecture applies to:

@@ -31,12 +31,106 @@ Observations discovered during exploration. Add to this as you find interesting 
 
 ---
 
-## Position Patterns (to be filled in after LLM extraction)
+## Position Extraction Results (January 2025)
 
-*Add observations here as you run LLM extraction...*
+**Extraction complete:** 607 positions from 112 chunks (17 priority companies)
+
+### Topic Distribution
+| Topic | Count | Description |
+|-------|-------|-------------|
+| `china_competition` | 94 | National security, competitiveness framing |
+| `federal_regulation` | ~X | Federal AI oversight |
+| `ai_safety` | ~X | Risk concerns, alignment |
+| `state_regulation` | ~X | State-level laws (SB 1047, etc.) |
+| *...more topics...* | | |
+
+*Note: Run `queries/06_positions_overview.sql` for exact counts*
+
+---
+
+## China Rhetoric Analysis
+
+### Rhetoric Analysis vs Fact-Checking: The Distinction
+
+This project takes two complementary but distinct approaches to China-related claims:
+
+| Approach | What It Does | Scope | Data Needed |
+|----------|--------------|-------|-------------|
+| **Rhetoric Analysis** (PRIMARY) | Categorizes *how* companies use China framing | All 94 positions | Already have it |
+| **Fact-Checking** (OPTIONAL) | Verifies *whether* specific claims are true | Only verifiable claims | Requires FARA, CSET |
+
+**Why rhetoric analysis comes first:**
+- We already have the data (94 extracted positions)
+- Every claim can be categorized, but only some can be fact-checked
+- The pattern of *how* companies use China framing is itself a finding
+- Doesn't require us to become China policy experts
+
+**When fact-checking adds value:**
+- For claims that make specific, verifiable assertions
+- Example: "China doesn't regulate AI" → We can research Chinese AI laws
+- Example: "China published more AI papers" → CSET has publication data
+- NOT for: "China will dominate if we regulate" → Unfalsifiable prediction
+
+**The key insight:** A company can use China rhetoric strategically even if their underlying claims are true. The rhetoric analysis reveals the *pattern of usage*; fact-checking reveals *accuracy*. Both are valid, but rhetoric analysis is tractable for all claims while fact-checking only applies to a subset.
+
+---
+
+### The Angle
+
+AI companies frequently invoke "China competition" when arguing against regulation. But is this genuine concern or rhetorical strategy?
+
+**Key insight:** We can analyze the *rhetoric* without needing to prove/disprove whether China is actually a threat. The question becomes: "How do companies use China framing in their policy arguments?"
+
+### What We Found
+
+**94 positions** classified as `china_competition` across 17 companies.
+
+### Research Questions
+
+1. **What types of claims are companies making?**
+   - Capability claims: "China will overtake us"
+   - Regulatory comparisons: "China doesn't regulate"
+   - Security framing: "National security requires X"
+   - Vague competitiveness: "We need to compete"
+
+2. **Are the claims verifiable or unfalsifiable rhetoric?**
+   - Verifiable: "China published X papers last year" (can check)
+   - Unfalsifiable: "China will dominate if we regulate" (how would you prove this?)
+
+3. **When do companies invoke China?**
+   - To argue against specific regulations?
+   - To request government funding?
+   - To justify less oversight?
+
+4. **Is there a pattern by company type?**
+   - Do AI labs use China framing more than Big Tech?
+   - Do trade groups differ from their members?
+
+### Analysis Approach
+
+Rather than trying to answer "Is China a threat?" (a massive geopolitical question), we focus on:
+
+1. **Categorize the rhetoric** - What kinds of China claims appear in submissions?
+2. **Flag verifiability** - Which claims can be fact-checked vs. which are unfalsifiable?
+3. **Map to policy positions** - When China is invoked, what regulation is being opposed?
+4. **Compare across companies** - Who uses this framing most heavily?
+
+This keeps us in the "document intelligence" lane rather than becoming China policy experts.
+
+### Potential Data Sources for Fact-Checking (Documented, Not Implemented)
+
+| Source | What It Provides | Limitation |
+|--------|------------------|------------|
+| **FARA** (efile.fara.gov) | Foreign lobbying in US - is China lobbying on AI? | Doesn't show China's domestic AI activity |
+| **Georgetown CSET** (github.com/georgetown-cset) | Academic data on China AI ecosystem | Research data, not real-time |
+| **USCC Annual Reports** | Congressional commission reports on China | Analysis, not raw data |
+
+---
+
+## Position Patterns
 
 ### Common themes across companies
-- [ ] TBD
+- [ ] TBD - analyze after reviewing positions
 
 ### Differences between AI labs vs Big Tech
 - [ ] TBD
