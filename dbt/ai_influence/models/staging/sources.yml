@@ -1,0 +1,19 @@
+version: 2
+
+sources:
+  - name: raw
+    database: DATAEXPERT_STUDENT
+    schema: KOUVERK_AI_INFLUENCE
+    tables:
+      - name: raw_ai_positions
+        description: LLM-extracted policy positions from AI Action Plan submissions
+      - name: raw_ai_submissions_metadata
+        description: Metadata about AI Action Plan PDF submissions
+      - name: raw_lda_filings
+        description: Senate LDA lobbying disclosure filings
+      - name: raw_lda_activities
+        description: Lobbying activities by issue code
+      - name: raw_lda_lobbyists
+        description: Individual lobbyists on filings
+      - name: raw_lobbying_impact_scores
+        description: LLM-assessed public interest concern scores

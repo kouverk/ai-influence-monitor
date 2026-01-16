@@ -1,0 +1,52 @@
+version: 2
+
+models:
+  - name: dim_company
+    description: Company dimension combining AI submitters and LDA clients
+    columns:
+      - name: company_id
+        description: Surrogate key for company
+        tests:
+          - unique
+          - not_null
+      - name: company_name
+        description: Company name (canonical)
+        tests:
+          - unique
+          - not_null
+
+  - name: fct_policy_positions
+    description: Policy positions extracted from AI Action Plan submissions
+    columns:
+      - name: position_id
+        description: Unique identifier for position
+        tests:
+          - unique
+          - not_null
+      - name: policy_ask
+        description: The specific policy action requested
+      - name: stance
+        description: Company's position (support/oppose/neutral)
+        tests:
+          - accepted_values:
+              values: ['support', 'oppose', 'neutral']
+
+  - name: fct_lobbying_quarterly
+    description: Lobbying activity by company and quarter
+    columns:
+      - name: filing_uuid
+        description: Unique filing identifier
+        tests:
+          - unique
+          - not_null
+
+  - name: fct_lobbying_impact
+    description: LLM-assessed public interest concern scores
+    columns:
+      - name: score_id
+        description: Unique score identifier
+        tests:
+          - unique
+          - not_null
+      - name: concern_score
+        description: 0-100 score (higher = more concerning for public interest)

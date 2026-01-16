@@ -1,0 +1,56 @@
+version: 2
+
+models:
+  - name: stg_ai_positions
+    description: Staged policy positions extracted from AI Action Plan submissions
+    columns:
+      - name: position_id
+        description: Unique identifier for each extracted position
+        tests:
+          - unique
+          - not_null
+
+  - name: stg_ai_submissions
+    description: Staged metadata about AI Action Plan PDF submissions
+    columns:
+      - name: document_id
+        description: Unique identifier for each submission document
+        tests:
+          - unique
+          - not_null
+
+  - name: stg_lda_filings
+    description: Staged Senate LDA lobbying disclosure filings
+    columns:
+      - name: filing_uuid
+        description: Unique identifier for each filing
+        tests:
+          - unique
+          - not_null
+
+  - name: stg_lda_activities
+    description: Staged lobbying activities by issue code
+    columns:
+      - name: activity_id
+        description: Unique identifier for each activity
+        tests:
+          - unique
+          - not_null
+
+  - name: stg_lda_lobbyists
+    description: Staged individual lobbyists on filings
+    columns:
+      - name: lobbyist_record_id
+        description: Unique identifier for each lobbyist-filing relationship
+        tests:
+          - unique
+          - not_null
+
+  - name: stg_lobbying_impact_scores
+    description: Staged LLM-assessed public interest concern scores
+    columns:
+      - name: score_id
+        description: Unique identifier for each company assessment
+        tests:
+          - unique
+          - not_null

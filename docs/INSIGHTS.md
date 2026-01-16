@@ -125,6 +125,31 @@ This keeps us in the "document intelligence" lane rather than becoming China pol
 | **Georgetown CSET** (github.com/georgetown-cset) | Academic data on China AI ecosystem | Research data, not real-time |
 | **USCC Annual Reports** | Congressional commission reports on China | Analysis, not raw data |
 
+### OpenSecrets Data (Evaluated, Not Implemented)
+
+**What it is:** OpenSecrets aggregates lobbying data from the same source we use (Senate LDA) but enriches it with:
+- Standardized industry codes (CRP_Categories)
+- Cross-linked company IDs across datasets
+- 30+ years of historical data
+- Campaign contribution data (PACs, individual donations)
+
+**What it would add:**
+- Better entity matching (they've done the deduplication work)
+- Historical trends (did lobbying spike after ChatGPT?)
+- **Campaign contributions** - follow money beyond just lobbying (e.g., "OpenAI lobbies for X AND donates to congresspeople on relevant committees")
+
+**Why we're not using it (for now):**
+- Their API was discontinued April 2025
+- Bulk data requires registration/approval for "legitimate research purposes"
+- It's essentially enriched LDA data - we already have the raw source
+- Core analytics questions are answerable with what we have
+
+**Future value:** If we want to add campaign contribution analysis or historical lobbying trends, OpenSecrets bulk data is the path. Not blocking for MVP.
+
+**Sources:**
+- [OpenSecrets Bulk Data](https://www.opensecrets.org/bulk-data)
+- [Bulk Data Documentation](https://www.opensecrets.org/open-data/bulk-data-documentation)
+
 ---
 
 ## Position Patterns
