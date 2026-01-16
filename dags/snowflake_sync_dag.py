@@ -12,6 +12,7 @@ Steps:
 Trigger manually after running extraction DAGs, or schedule daily.
 """
 
+import os
 from datetime import datetime, timedelta
 from airflow import DAG
 from airflow.operators.bash import BashOperator
@@ -24,12 +25,7 @@ default_args = {
     'retry_delay': timedelta(minutes=2),
 }
 
-SCRIPT_PATH = '/Users/kouverbingham/development/data-expert-analytics/ai-influence-monitor'
-PYTHON_PATH = f'{SCRIPT_PATH}/venv/bin/python'
-
-
-def get_env_exports():
-    return f"export $(grep -v '^#' {SCRIPT_PATH}/.env | grep -v '^$' | grep -v AIRFLOW | xargs)"
+AIRFLOW_HOME = os.environ.get('AIRFLOW_HOME', '/usr/local/airflow')
 
 
 with DAG(
@@ -44,31 +40,17 @@ with DAG(
 
     export_to_snowflake = BashOperator(
         task_id='export_to_snowflake',
-        bash_command=f"""
-            cd {SCRIPT_PATH} && \
-            {get_env_exports()} && \
-            {PYTHON_PATH} include/scripts/utils/export_to_snowflake.py
-        """,
+        bash_command=f'python {AIRFLOW_HOME}/include/scripts/utils/export_to_snowflake.py',
     )
 
     run_dbt = BashOperator(
         task_id='run_dbt',
-        bash_command=f"""
-            cd {SCRIPT_PATH} && \
-            {get_env_exports()} && \
-            cd dbt/ai_influence && \
-            {SCRIPT_PATH}/venv/bin/dbt run
-        """,
+        bash_command=f'cd {AIRFLOW_HOME}/dbt/ai_influence && dbt run',
     )
 
     test_dbt = BashOperator(
         task_id='test_dbt',
-        bash_command=f"""
-            cd {SCRIPT_PATH} && \
-            {get_env_exports()} && \
-            cd dbt/ai_influence && \
-            {SCRIPT_PATH}/venv/bin/dbt test
-        """,
+        bash_command=f'cd {AIRFLOW_HOME}/dbt/ai_influence && dbt test',
     )
 
     export_to_snowflake >> run_dbt >> test_dbt

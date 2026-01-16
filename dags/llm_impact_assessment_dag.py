@@ -16,6 +16,7 @@ Depends on:
 - lda_filings/activities tables (from extract_lda_lobbying DAG)
 """
 
+import os
 from datetime import datetime, timedelta
 from airflow import DAG
 from airflow.operators.bash import BashOperator
@@ -28,12 +29,7 @@ default_args = {
     'retry_delay': timedelta(minutes=10),
 }
 
-SCRIPT_PATH = '/Users/kouverbingham/development/data-expert-analytics/ai-influence-monitor'
-PYTHON_PATH = f'{SCRIPT_PATH}/venv/bin/python'
-
-
-def get_env_exports():
-    return f"export $(grep -v '^#' {SCRIPT_PATH}/.env | grep -v '^$' | grep -v AIRFLOW | xargs)"
+AIRFLOW_HOME = os.environ.get('AIRFLOW_HOME', '/usr/local/airflow')
 
 
 with DAG(
@@ -48,10 +44,6 @@ with DAG(
 
     assess_impact = BashOperator(
         task_id='assess_lobbying_impact',
-        bash_command=f"""
-            cd {SCRIPT_PATH} && \
-            {get_env_exports()} && \
-            {PYTHON_PATH} include/scripts/agentic/assess_lobbying_impact.py
-        """,
+        bash_command=f'python {AIRFLOW_HOME}/include/scripts/agentic/assess_lobbying_impact.py',
         execution_timeout=timedelta(hours=1),
     )

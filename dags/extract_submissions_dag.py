@@ -6,12 +6,9 @@ Use this for:
 - Initial bulk load of all PDFs
 - Reprocessing specific documents
 - Adding new priority companies
-
-Trigger with:
-- {"limit": 10} to process only 10 documents
-- {} for full processing
 """
 
+import os
 from datetime import datetime, timedelta
 from airflow import DAG
 from airflow.operators.bash import BashOperator
@@ -24,12 +21,7 @@ default_args = {
     'retry_delay': timedelta(minutes=2),
 }
 
-SCRIPT_PATH = '/Users/kouverbingham/development/data-expert-analytics/ai-influence-monitor'
-PYTHON_PATH = f'{SCRIPT_PATH}/venv/bin/python'
-
-
-def get_env_exports():
-    return f"export $(grep -v '^#' {SCRIPT_PATH}/.env | grep -v '^$' | grep -v AIRFLOW | xargs)"
+AIRFLOW_HOME = os.environ.get('AIRFLOW_HOME', '/usr/local/airflow')
 
 
 with DAG(
@@ -44,9 +36,5 @@ with DAG(
 
     extract_pdfs = BashOperator(
         task_id='extract_pdf_submissions',
-        bash_command=f"""
-            cd {SCRIPT_PATH} && \
-            {get_env_exports()} && \
-            {PYTHON_PATH} include/scripts/extraction/extract_pdf_submissions.py
-        """,
+        bash_command=f'python {AIRFLOW_HOME}/include/scripts/extraction/extract_pdf_submissions.py',
     )
