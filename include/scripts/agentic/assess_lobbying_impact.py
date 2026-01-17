@@ -91,14 +91,32 @@ Assess the public interest implications of this company's AI policy lobbying.
 
 <company>{company_name} ({company_type})</company>
 
-<public_policy_positions>
-These are positions the company submitted to the government's AI Action Plan RFI:
-{positions_json}
-</public_policy_positions>
+<policy_positions_summary>
+Aggregated policy asks from their AI Action Plan submission (what they publicly advocate for):
+
+By Category:
+{positions_by_category}
+
+Top Arguments Used:
+{arguments_summary}
+
+China Competition Framing:
+{china_framing_summary}
+</policy_positions_summary>
+
+<sample_quotes>
+Key quotes from their submission:
+{sample_quotes}
+</sample_quotes>
 
 <lobbying_activity>
-These are their lobbying disclosure filings from the Senate LDA (what they're paying lobbyists to push):
-{lobbying_json}
+Senate LDA filings (what they're paying lobbyists to push):
+- Total filings: {total_filings}
+- Total expenses: ${total_expenses:,.0f}
+- Years active: {years_active}
+
+By Issue Area:
+{lobbying_by_issue}
 </lobbying_activity>
 
 Analyze what this company is actually trying to achieve through lobbying and assess the implications.
@@ -109,6 +127,14 @@ Return JSON with these fields:
   "lobbying_agenda_summary": "<2-3 sentences: What is this company's overall lobbying agenda? What policy outcomes are they pushing for?>",
 
   "concern_score": <0-100 integer - how concerning is this lobbying for public interest?>,
+
+  "top_concerning_policy_asks": [
+    {{
+      "policy_ask": "<code from their positions>",
+      "why_concerning": "<implication for public>",
+      "lobbying_alignment": "<how their lobbying supports this>"
+    }}
+  ],
 
   "public_interest_concerns": [
     {{
@@ -123,9 +149,16 @@ Return JSON with these fields:
     "<any signs they're trying to shape regulations to benefit themselves over competitors or public>"
   ],
 
-  "safety_vs_profit_tensions": [
-    "<areas where their lobbying prioritizes commercial interests over safety/accountability>"
-  ],
+  "china_rhetoric_assessment": {{
+    "usage_pattern": "<how they use China framing>",
+    "serves_which_agenda": "<what policies does the China argument support?>",
+    "legitimacy": "<is the China framing substantive or rhetorical cover?>"
+  }},
+
+  "accountability_stance": {{
+    "wants_oversight": <true|false>,
+    "evidence": "<what their positions on audits, liability, transparency reveal>"
+  }},
 
   "positive_aspects": [
     "<any lobbying that genuinely serves public interest>"
@@ -142,6 +175,13 @@ Scoring guide for concern_score:
 - 41-60: Moderate concerns - some troubling patterns
 - 61-80: Significant concerns - lobbying could harm public
 - 81-100: Critical concerns - active efforts against public interest
+
+Policy ask codes reference:
+- federal_preemption: Block state AI laws with federal override
+- liability_shield: Protect from lawsuits for AI harms
+- self_regulation: Industry-led standards, no mandates
+- export_controls_loose: Fewer chip/model restrictions
+- training_data_fair_use: Use copyrighted data without payment
 
 IMPORTANT analysis guidelines:
 - Don't just report what they said - analyze the IMPLICATIONS
@@ -208,29 +248,70 @@ def get_processed_companies(catalog, scores_table_name: str) -> set:
         return set()
 
 
-def get_positions_by_company(catalog, positions_table_name: str) -> dict[str, list]:
+def get_positions_by_company(catalog, positions_table_name: str) -> dict[str, dict]:
     """
-    Load positions and group by submitter_name.
+    Load positions and group by submitter_name with structured taxonomy aggregation.
 
     Returns:
-        dict: {company_name: [list of position dicts]}
+        dict: {company_name: {
+            "positions": [list of position dicts],
+            "by_category": {category: [{policy_ask, stance, count}]},
+            "arguments": {argument: count},
+            "china_framing": {policy_ask: count},
+            "sample_quotes": [top quotes by confidence]
+        }}
     """
     try:
         table = catalog.load_table(positions_table_name)
         df = table.scan().to_arrow().to_pandas()
 
         positions_by_company = {}
-        for _, row in df.iterrows():
-            company = row["submitter_name"]
-            if company not in positions_by_company:
-                positions_by_company[company] = []
+        for company in df["submitter_name"].unique():
+            company_df = df[df["submitter_name"] == company]
 
-            positions_by_company[company].append({
-                "topic": row["topic"],
-                "stance": row["stance"],
-                "supporting_quote": row["supporting_quote"],
-                "confidence": row["confidence"]
-            })
+            # Raw positions list
+            positions = []
+            for _, row in company_df.iterrows():
+                positions.append({
+                    "policy_ask": row["policy_ask"],
+                    "ask_category": row["ask_category"],
+                    "stance": row["stance"],
+                    "primary_argument": row["primary_argument"],
+                    "secondary_argument": row.get("secondary_argument"),
+                    "supporting_quote": row["supporting_quote"],
+                    "confidence": row["confidence"]
+                })
+
+            # Aggregate by category
+            by_category = {}
+            category_groups = company_df.groupby(["ask_category", "policy_ask", "stance"]).size().reset_index(name="count")
+            for _, row in category_groups.iterrows():
+                cat = row["ask_category"]
+                if cat not in by_category:
+                    by_category[cat] = []
+                by_category[cat].append({
+                    "policy_ask": row["policy_ask"],
+                    "stance": row["stance"],
+                    "count": int(row["count"])
+                })
+
+            # Aggregate arguments
+            arguments = company_df["primary_argument"].value_counts().to_dict()
+
+            # China-specific framing
+            china_positions = company_df[company_df["primary_argument"] == "china_competition"]
+            china_framing = china_positions["policy_ask"].value_counts().to_dict() if len(china_positions) > 0 else {}
+
+            # Top quotes by confidence
+            top_quotes = company_df.nlargest(5, "confidence")[["policy_ask", "supporting_quote", "confidence"]].to_dict("records")
+
+            positions_by_company[company] = {
+                "positions": positions,
+                "by_category": by_category,
+                "arguments": {k: int(v) for k, v in arguments.items()},
+                "china_framing": {k: int(v) for k, v in china_framing.items()},
+                "sample_quotes": top_quotes
+            }
 
         logger.info(f"Loaded positions for {len(positions_by_company)} companies")
         return positions_by_company
@@ -396,22 +477,87 @@ def match_companies(positions: dict, lobbying: dict,
     return matched
 
 
+def format_positions_by_category(by_category: dict) -> str:
+    """Format positions by category for prompt."""
+    lines = []
+    for category, asks in sorted(by_category.items()):
+        lines.append(f"\n{category.upper()}:")
+        for ask in sorted(asks, key=lambda x: x["count"], reverse=True):
+            lines.append(f"  - {ask['policy_ask']}: {ask['stance']} (x{ask['count']})")
+    return "\n".join(lines) if lines else "No positions found"
+
+
+def format_arguments_summary(arguments: dict) -> str:
+    """Format argument counts for prompt."""
+    lines = []
+    for arg, count in sorted(arguments.items(), key=lambda x: x[1], reverse=True)[:10]:
+        lines.append(f"  - {arg}: {count}")
+    return "\n".join(lines) if lines else "No arguments found"
+
+
+def format_china_framing(china_framing: dict) -> str:
+    """Format China competition framing for prompt."""
+    if not china_framing:
+        return "Not used"
+    total = sum(china_framing.values())
+    lines = [f"Used {total} times to support:"]
+    for ask, count in sorted(china_framing.items(), key=lambda x: x[1], reverse=True):
+        lines.append(f"  - {ask}: {count}")
+    return "\n".join(lines)
+
+
+def format_sample_quotes(quotes: list) -> str:
+    """Format sample quotes for prompt."""
+    lines = []
+    for q in quotes[:5]:
+        quote_text = q["supporting_quote"][:150] + "..." if len(q["supporting_quote"]) > 150 else q["supporting_quote"]
+        lines.append(f"  [{q['policy_ask']}] \"{quote_text}\"")
+    return "\n".join(lines) if lines else "No quotes available"
+
+
+def format_lobbying_by_issue(activities: list) -> str:
+    """Format lobbying activities by issue code for prompt."""
+    lines = []
+    for act in sorted(activities, key=lambda x: x["times_lobbied"], reverse=True)[:10]:
+        lines.append(f"  - {act['issue_name']} ({act['issue_code']}): {act['times_lobbied']} filings")
+        if act.get("sample_descriptions"):
+            for desc in act["sample_descriptions"][:2]:
+                if desc:
+                    desc_short = desc[:100] + "..." if len(desc) > 100 else desc
+                    lines.append(f"      \"{desc_short}\"")
+    return "\n".join(lines) if lines else "No lobbying activity found"
+
+
 def call_lobbying_impact_api(client: anthropic.Anthropic, company_name: str,
-                              company_type: str, positions: list, lobbying: dict) -> dict:
+                              company_type: str, positions_data: dict, lobbying: dict) -> dict:
     """
     Call Claude API to assess lobbying impact on public interest.
+
+    Args:
+        positions_data: Structured positions dict with by_category, arguments, china_framing, sample_quotes
+        lobbying: Lobbying data with total_filings, total_expenses, years, activities
 
     Returns:
         dict with concern_score, lobbying_agenda_summary, public_interest_concerns, etc.
     """
-    positions_json = json.dumps(positions, indent=2)
-    lobbying_json = json.dumps(lobbying, indent=2)
+    # Format structured data for prompt
+    positions_by_category = format_positions_by_category(positions_data.get("by_category", {}))
+    arguments_summary = format_arguments_summary(positions_data.get("arguments", {}))
+    china_framing_summary = format_china_framing(positions_data.get("china_framing", {}))
+    sample_quotes = format_sample_quotes(positions_data.get("sample_quotes", []))
+    lobbying_by_issue = format_lobbying_by_issue(lobbying.get("activities", []))
 
     prompt = LOBBYING_IMPACT_PROMPT.format(
         company_name=company_name,
         company_type=company_type,
-        positions_json=positions_json,
-        lobbying_json=lobbying_json
+        positions_by_category=positions_by_category,
+        arguments_summary=arguments_summary,
+        china_framing_summary=china_framing_summary,
+        sample_quotes=sample_quotes,
+        total_filings=lobbying.get("total_filings", 0),
+        total_expenses=lobbying.get("total_expenses", 0),
+        years_active=", ".join(str(y) for y in lobbying.get("years", [])),
+        lobbying_by_issue=lobbying_by_issue
     )
 
     for attempt in range(MAX_RETRIES):
@@ -524,8 +670,11 @@ def score_discrepancies(
     if dry_run:
         logger.info(f"DRY RUN: Would process {len(unprocessed)} companies:")
         for m in unprocessed:
+            pos_data = m['positions']
+            pos_count = len(pos_data.get('positions', []))
+            china_count = sum(pos_data.get('china_framing', {}).values())
             logger.info(f"  - {m['company_name']} ({m['company_type']}): "
-                       f"{len(m['positions'])} positions, "
+                       f"{pos_count} positions, {china_count} china-framed, "
                        f"{m['lobbying']['total_filings']} filings")
         return {"companies_processed": 0, "errors": [], "dry_run": True,
                 "would_process": [m["company_name"] for m in unprocessed]}
@@ -549,6 +698,7 @@ def score_discrepancies(
             )
 
             score_id = f"{company_name}_{processed_at.strftime('%Y%m%d%H%M%S')}"
+            pos_data = company_data["positions"]
 
             score_records.append({
                 "score_id": score_id,
@@ -556,12 +706,14 @@ def score_discrepancies(
                 "company_type": company_data["company_type"],
                 "concern_score": int(result.get("concern_score", 0)),
                 "lobbying_agenda_summary": result.get("lobbying_agenda_summary", ""),
+                "top_concerning_policy_asks": json.dumps(result.get("top_concerning_policy_asks", [])),
                 "public_interest_concerns": json.dumps(result.get("public_interest_concerns", [])),
                 "regulatory_capture_signals": json.dumps(result.get("regulatory_capture_signals", [])),
-                "safety_vs_profit_tensions": json.dumps(result.get("safety_vs_profit_tensions", [])),
+                "china_rhetoric_assessment": json.dumps(result.get("china_rhetoric_assessment", {})),
+                "accountability_stance": json.dumps(result.get("accountability_stance", {})),
                 "positive_aspects": json.dumps(result.get("positive_aspects", [])),
                 "key_flags": json.dumps(result.get("key_flags", [])),
-                "positions_count": len(company_data["positions"]),
+                "positions_count": len(pos_data.get("positions", [])),
                 "lobbying_filings_count": company_data["lobbying"]["total_filings"],
                 "model": MODEL,
                 "processed_at": processed_at
@@ -584,22 +736,24 @@ def score_discrepancies(
         logger.warning("No scores generated - nothing to write")
         return {"companies_processed": len(unprocessed), "scores_written": 0, "errors": errors}
 
-    # Define schema - lobbying impact assessment
+    # Define schema - lobbying impact assessment (v2 with taxonomy)
     scores_schema = Schema(
         NestedField(1, "score_id", StringType(), required=True),
         NestedField(2, "company_name", StringType(), required=False),
         NestedField(3, "company_type", StringType(), required=False),
         NestedField(4, "concern_score", IntegerType(), required=False),
         NestedField(5, "lobbying_agenda_summary", StringType(), required=False),
-        NestedField(6, "public_interest_concerns", StringType(), required=False),
-        NestedField(7, "regulatory_capture_signals", StringType(), required=False),
-        NestedField(8, "safety_vs_profit_tensions", StringType(), required=False),
-        NestedField(9, "positive_aspects", StringType(), required=False),
-        NestedField(10, "key_flags", StringType(), required=False),
-        NestedField(11, "positions_count", IntegerType(), required=False),
-        NestedField(12, "lobbying_filings_count", IntegerType(), required=False),
-        NestedField(13, "model", StringType(), required=False),
-        NestedField(14, "processed_at", TimestampType(), required=False)
+        NestedField(6, "top_concerning_policy_asks", StringType(), required=False),
+        NestedField(7, "public_interest_concerns", StringType(), required=False),
+        NestedField(8, "regulatory_capture_signals", StringType(), required=False),
+        NestedField(9, "china_rhetoric_assessment", StringType(), required=False),
+        NestedField(10, "accountability_stance", StringType(), required=False),
+        NestedField(11, "positive_aspects", StringType(), required=False),
+        NestedField(12, "key_flags", StringType(), required=False),
+        NestedField(13, "positions_count", IntegerType(), required=False),
+        NestedField(14, "lobbying_filings_count", IntegerType(), required=False),
+        NestedField(15, "model", StringType(), required=False),
+        NestedField(16, "processed_at", TimestampType(), required=False)
     )
 
     pa_schema = pa.schema([
@@ -608,9 +762,11 @@ def score_discrepancies(
         pa.field("company_type", pa.string(), nullable=True),
         pa.field("concern_score", pa.int32(), nullable=True),
         pa.field("lobbying_agenda_summary", pa.string(), nullable=True),
+        pa.field("top_concerning_policy_asks", pa.string(), nullable=True),
         pa.field("public_interest_concerns", pa.string(), nullable=True),
         pa.field("regulatory_capture_signals", pa.string(), nullable=True),
-        pa.field("safety_vs_profit_tensions", pa.string(), nullable=True),
+        pa.field("china_rhetoric_assessment", pa.string(), nullable=True),
+        pa.field("accountability_stance", pa.string(), nullable=True),
         pa.field("positive_aspects", pa.string(), nullable=True),
         pa.field("key_flags", pa.string(), nullable=True),
         pa.field("positions_count", pa.int32(), nullable=True),

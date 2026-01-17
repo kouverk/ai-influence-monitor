@@ -38,153 +38,208 @@ A document intelligence pipeline that:
 - Chunks into ~800 word segments (100 word overlap) for LLM processing
 - Writes to 3 Iceberg tables via PyIceberg + AWS Glue
 
-**2. LLM Position Extraction** ✅ (THE AGENTIC PART!)
+**2. LLM Position Extraction** ✅
 - Script: `include/scripts/agentic/extract_positions.py`
 - Sends chunks to Claude API (claude-sonnet-4-20250514)
-- Extracts structured policy positions: topic, stance, supporting_quote, confidence
-- Idempotent/incremental - tracks processed chunks, safe to re-run
+- Enhanced taxonomy with 30+ policy_ask codes, 15+ argument codes
+- Captures: policy_ask, ask_category, stance, target, primary_argument, secondary_argument
 
 **3. Senate LDA Lobbying Data** ✅
 - Script: `include/scripts/extraction/extract_lda_filings.py`
 - Fetches lobbying disclosures from lda.senate.gov API
 - Normalizes into 3 tables: filings, activities, lobbyists
 
-**Data currently in Iceberg:**
+**4. Snowflake Integration** ✅
+- Script: `include/scripts/utils/export_to_snowflake.py`
+- Exports Iceberg tables to Snowflake RAW tables
+- Database: `DATAEXPERT_STUDENT.KOUVERK_AI_INFLUENCE`
+
+**5. dbt Models** ✅
+- Project: `dbt/ai_influence/`
+- 6 staging views + 4 mart tables
+- 23 tests passing
+
+**6. Airflow DAGs** ✅
+- 6 DAGs in `dags/` directory
+- Main orchestration: `ai_influence_pipeline.py`
+- All using Astronomer-compatible `AIRFLOW_HOME` paths
+
+**7. Astronomer Setup** ✅
+- Initialized with `astro dev init`
+- Dockerfile configured for runtime 3.1-10
+- Ready for `astro dev start` (requires Docker)
+
+**8. LLM Analysis Scripts** ✅
+- `assess_lobbying_impact.py` - Public interest concern scoring (v2 with taxonomy)
+- `detect_discrepancies.py` - Say vs Do contradiction detection (NEW)
+
+**Data in Iceberg:**
 
 | Table | Rows | Description |
 |-------|------|-------------|
-| `kouverk.ai_submissions_metadata` | 17 | Document info (pages, words, size) |
+| `kouverk.ai_submissions_metadata` | 17 | Document info |
 | `kouverk.ai_submissions_text` | 17 | Full extracted text |
-| `kouverk.ai_submissions_chunks` | 112 | Chunks for LLM processing |
-| `kouverk.ai_positions` | **633** | LLM-extracted policy asks ✅ |
-| `kouverk.lda_filings` | **339** | Lobbying quarterly filings (2023+, AI-relevant) |
+| `kouverk.ai_submissions_chunks` | 112 | Chunks for LLM |
+| `kouverk.ai_positions` | **633** | Policy asks with taxonomy |
+| `kouverk.lda_filings` | **339** | Lobbying filings (2023+) |
 | `kouverk.lda_activities` | **869** | Issue codes + descriptions |
 | `kouverk.lda_lobbyists` | **2,586** | Individual lobbyists |
+| `kouverk.lobbying_impact_scores` | 10 | Concern scores (v1) |
+| `kouverk.discrepancy_scores` | 10 | Discrepancy scores (v1) |
 
-**Companies processed:** OpenAI, Anthropic, Google, Meta, Microsoft, Amazon, Palantir, IBM, Adobe, Nvidia, Mistral, Cohere, CCIA, TechNet, BSA, ITI, BCBSA
+**Position Taxonomy:**
+- 633 positions with structured codes
+- Top policy_asks: `government_ai_adoption` (70), `research_funding` (43), `federal_preemption` (31)
+- Top arguments: `competitiveness` (223), `china_competition` (55), `innovation_harm` (87)
 
-**Position breakdown (enhanced schema):**
-- 633 policy asks extracted with specific ask codes
-- 5.9 avg positions per chunk
-- Top policy asks: `government_ai_adoption` (70), `research_funding` (43), `international_harmonization` (40), `federal_preemption` (31)
-- Top arguments: `competitiveness` (223), `national_security` (87), `innovation_harm` (87), `china_competition` (55)
-- Schema now captures: policy_ask, ask_category, stance, target (specific regulation), primary_argument, secondary_argument
-
-**China Rhetoric Analysis:**
-- 55 positions use `china_competition` as primary argument
-- 8 positions explicitly frame policy as `china_competition_frame`
-- Enhanced schema enables queries like "Who uses China arguments to justify federal_preemption?"
+**China Framing by Company:**
+- OpenAI: 16 positions use china_competition argument (most aggressive)
+- Palantir: 6
+- TechNet: 5
+- IBM: 4
+- Anthropic: 2
+- Others: 0-1
 
 ### What's NOT Done
-- dbt models (transform layer)
-- Discrepancy scoring (LLM compares positions to lobbying)
-- China rhetoric deep-dive (categorize and analyze the 94 positions)
-- Dashboard
-- Optional: FARA/CSET data for fact-checking specific claims
+- Dashboard/visualization layer
+- Re-run agentic scripts with v2 prompts (table schemas changed)
+- Process more documents (only 17 of 10,000+ available)
 
 ---
 
-## Next Steps
+## Agentic Scripts
 
-### Option A: dbt Project Setup (recommended)
-Create dbt models to transform Iceberg data → analytics-ready tables.
-- Staging models for submissions, positions, lobbying
-- Entity resolution to match companies across sources
-- Marts: `fct_policy_positions`, `fct_lobbying_activity`, `dim_company`
-- **Why now:** Core ETL infrastructure for capstone
+### Current Scripts
 
-### Option B: Discrepancy Scoring
-Build the "hypocrite detector" - compare stated positions to lobbying activity.
-- LLM prompt that takes positions + lobbying → discrepancy score
-- Output: 0-100 score + reasoning + key inconsistencies
-- **Why now:** The "aha moment" of the project
+| Script | Purpose | Output Table |
+|--------|---------|--------------|
+| `extract_positions.py` | Extract policy asks from PDF chunks | `ai_positions` |
+| `assess_lobbying_impact.py` | Score public interest concerns | `lobbying_impact_scores` |
+| `detect_discrepancies.py` | Find say-vs-do contradictions | `discrepancy_scores` |
 
-### Option C: China Rhetoric Analysis
-Analyze *how companies use China framing* in policy arguments (not whether China is a threat).
-- Pull and review the 94 `china_competition` positions
-- Categorize claim types: capability, regulatory comparison, security framing, vague
-- Flag verifiable claims vs unfalsifiable rhetoric
-- Map China invocations to specific regulations being opposed
-- Compare usage patterns across AI labs vs Big Tech vs trade groups
-- **Why now:** Adds depth to the "say vs lobby" story
-- **See:** [INSIGHTS.md](docs/INSIGHTS.md) for full analysis framework
+### Run Commands
 
-### Option D: Process More Documents
-Expand beyond 17 priority companies.
-- ~1,687 named submissions available
-- ~8,000 anonymous submissions
-- **Why now:** More data volume for capstone requirements
+```bash
+# Extract positions (already done)
+./venv/bin/python include/scripts/agentic/extract_positions.py --limit=25
 
-### Option E: Airflow DAGs
-Convert scripts into proper Airflow DAGs for Astronomer deployment.
-- DAGs for each extraction pipeline
-- Scheduling for live API sources
-- **Why now:** Required for capstone submission
+# Assess lobbying impact (v2 prompt - re-run with --fresh)
+./venv/bin/python include/scripts/agentic/assess_lobbying_impact.py --fresh --limit=1
+
+# Detect discrepancies (v2 prompt - re-run with --fresh)
+./venv/bin/python include/scripts/agentic/detect_discrepancies.py --fresh --limit=1
+
+# Dry run any script
+./venv/bin/python include/scripts/agentic/detect_discrepancies.py --dry-run
+```
+
+---
+
+## Future AI Analyses
+
+Potential additional agentic scripts to build, ranked by value:
+
+### High Priority
+
+**1. China Rhetoric Analyzer** (`analyze_china_rhetoric.py`)
+Deep-dive on the 55 positions using `china_competition` as argument:
+- Categorize claim types: capability claims, regulatory comparison, security framing, vague warnings
+- Flag verifiable vs unfalsifiable claims
+- Map which policy asks the China argument supports
+- Compare usage across company types (AI labs vs Big Tech vs trade groups)
+- **Why valuable:** OpenAI uses China 16 times, Palantir 6. Are they making the same arguments?
+
+**2. Cross-Company Position Comparator** (`compare_positions.py`)
+Direct head-to-head analysis:
+- Where do OpenAI and Anthropic agree/disagree?
+- Where do AI labs differ from Big Tech?
+- What's the "industry consensus" vs outlier positions?
+- **Why valuable:** Reveals coalition dynamics and fracture lines
+
+### Medium Priority
+
+**3. Trade Group Aggregator** (`analyze_trade_groups.py`)
+Trade groups (CCIA, TechNet, US Chamber) represent multiple companies:
+- Identify "lowest common denominator" positions
+- Compare trade group positions to member companies
+- Flag where trade groups take more aggressive stances than members would publicly
+- **Why valuable:** Trade groups can advocate positions individual companies won't say
+
+**4. Regulatory Target Mapper** (`map_regulatory_targets.py`)
+The `target` field identifies specific bills/regulations:
+- Aggregate positions on specific targets (e.g., "California SB 1047")
+- Identify which companies oppose vs support each regulation
+- Cross-reference with lobbying on those issues
+- **Why valuable:** See coalition patterns on specific legislation
+
+### Lower Priority
+
+**5. Argument Effectiveness Scorer** (`score_argument_effectiveness.py`)
+Analyze which arguments companies use most:
+- `patchwork_problem` → almost always supports `federal_preemption`
+- `innovation_harm` → liability shields, audit opposition
+- `china_competition` → national security, export controls
+- **Why valuable:** Understand the rhetorical playbook
+
+**6. Submission Quality Assessor** (`assess_submission_quality.py`)
+Score depth of policy engagement:
+- Generic/boilerplate vs specific recommendations
+- Which companies actually engage vs checking a box
+- **Why valuable:** Quality signal for policy seriousness
 
 ---
 
 ## Quick Reference
 
-**Run scripts:**
-```bash
-# PDF extraction (already complete)
-./venv/bin/python include/scripts/extraction/extract_pdf_submissions.py
-
-# LLM position extraction (already complete)
-./venv/bin/python include/scripts/agentic/extract_positions.py --limit=25
-
-# LDA lobbying data (already complete)
-./venv/bin/python include/scripts/extraction/extract_lda_filings.py
-
-# Check progress across all tables
-./venv/bin/python include/scripts/utils/check_progress.py
-```
-
 **Key files:**
-- `include/config.py` - Shared company lists and LDA filter settings
-- `include/scripts/extraction/` - Data loading scripts (PDF, LDA)
-- `include/scripts/agentic/` - LLM-powered extraction
-- `include/scripts/utils/` - Helper scripts (progress tracking)
-- `.env` - AWS credentials + SCHEMA + ANTHROPIC_API_KEY
-- `queries/` - SQL for Trino exploration
+- `include/config.py` - Company lists and LDA filter settings
+- `include/scripts/extraction/` - Data loading (PDF, LDA)
+- `include/scripts/agentic/` - LLM-powered analysis
+- `include/scripts/utils/` - Helpers (progress, export)
+- `dags/` - Airflow DAGs
+- `dbt/ai_influence/` - dbt project
+- `.env` - Credentials (AWS, Anthropic, Snowflake)
 
 **Config:**
-- Schema: `kouverk` (from `.env`)
-- Chunking: 800 words, 100 word overlap
+- Schema: `kouverk` (Iceberg) / `KOUVERK_AI_INFLUENCE` (Snowflake)
 - LLM Model: claude-sonnet-4-20250514
+- Chunking: 800 words, 100 word overlap
 
 ---
 
 ## Session Log
+
+### Session 5: January 17, 2025
+- Set up Astronomer project (`astro dev init`)
+- Updated all 6 DAGs for Astronomer-compatible paths
+- Refactored `assess_lobbying_impact.py` to use structured taxonomy (v2 prompt)
+- Built `detect_discrepancies.py` for say-vs-do contradiction detection
+- Added policy_ask → LDA issue code mapping for systematic comparison
+- Documented 6 potential future AI analyses
+- Note: Existing score tables use old schema; re-run with `--fresh` for new output
 
 ### Session 4: January 14, 2025
 - Created shared `include/config.py` for company lists and LDA filters
 - Aligned PDF and LDA extraction scripts to use same 16 priority companies
 - Added LDA filters: 2023+ AND AI-relevant issue codes (CPI, SCI, CPT, CSP, DEF, HOM)
 - Re-ran LDA extraction: 339 filings, 869 activities, 2,586 lobbyists
-- 3 rate limit errors (Meta, Microsoft, Cohere partial) - can backfill later
 
-### Session 3: January 14, 2025 (continued)
-- **Completed LLM position extraction!** 607 positions from 112 chunks
-- Fixed JSON parsing to handle Claude responses with markdown/explanatory text
-- Created `include/scripts/utils/check_progress.py` for monitoring
-- Loaded Senate LDA lobbying data (110 filings, 236 activities, 624 lobbyists)
-- Researched China data sources for fact-checking "China threat" claims
-- Documented FARA (foreign agents) and Georgetown CSET as future data sources
-- Notable finding: 94 positions on `china_competition` topic
+### Session 3: January 14, 2025
+- Completed LLM position extraction: 633 positions from 112 chunks
+- Fixed JSON parsing for Claude responses
+- Created `check_progress.py` for monitoring
+- Loaded Senate LDA lobbying data
+- Notable finding: 55 positions use `china_competition` argument
 
 ### Session 2: January 14, 2025
-- Created PDF extraction pipeline following bootcamp pyiceberg pattern
+- Created PDF extraction pipeline
 - Implemented 3-table design for query efficiency
 - Processed 17 priority company submissions → 112 chunks
-- Created SQL queries folder for Trino exploration
-- Split documentation into separate files
 
 ### Session 1: January 2025
 - Downloaded AI Action Plan submissions (10,068 PDFs, 746MB)
 - Set up Python venv with PyMuPDF
-- Explored data structure and file formats
 
 ---
 
-*Last updated: January 14, 2025*
+*Last updated: January 17, 2025*
