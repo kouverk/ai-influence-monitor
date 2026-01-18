@@ -616,7 +616,8 @@ def call_lobbying_impact_api(client: anthropic.Anthropic, company_name: str,
 
 def score_discrepancies(
     limit: Optional[int] = None,
-    dry_run: bool = False
+    dry_run: bool = False,
+    fresh: bool = False
 ) -> dict:
     """
     Score discrepancies for all matched companies.
@@ -624,6 +625,7 @@ def score_discrepancies(
     Args:
         limit: Max number of companies to process (None = all)
         dry_run: If True, don't call API or write to Iceberg
+        fresh: If True, reprocess all companies (ignore existing scores)
 
     Returns:
         dict with keys: companies_processed, errors
@@ -640,9 +642,18 @@ def score_discrepancies(
     catalog = get_catalog()
     logger.info("Initialized Iceberg catalog")
 
-    # Get already processed companies (for idempotency)
-    processed_companies = get_processed_companies(catalog, tables["scores"])
-    logger.info(f"Already processed: {len(processed_companies)} companies")
+    # Get already processed companies (for idempotency) - skip if fresh
+    if fresh:
+        # Drop existing table for clean reprocessing
+        try:
+            catalog.drop_table(tables["scores"])
+            logger.info(f"Fresh mode: dropped existing table {tables['scores']}")
+        except Exception:
+            logger.info("Fresh mode: no existing table to drop")
+        processed_companies = set()
+    else:
+        processed_companies = get_processed_companies(catalog, tables["scores"])
+        logger.info(f"Already processed: {len(processed_companies)} companies")
 
     # Load data
     positions = get_positions_by_company(catalog, tables["positions"])
@@ -810,17 +821,20 @@ if __name__ == "__main__":
     # Parse args
     limit = None
     dry_run = False
+    fresh = False
 
     for arg in sys.argv[1:]:
         if arg == "--dry-run":
             dry_run = True
+        elif arg == "--fresh":
+            fresh = True
         elif arg.startswith("--limit="):
             limit = int(arg.split("=")[1])
         elif arg.isdigit():
             limit = int(arg)
 
     try:
-        result = score_discrepancies(limit=limit, dry_run=dry_run)
+        result = score_discrepancies(limit=limit, dry_run=dry_run, fresh=fresh)
         logger.info(f"Scoring complete: {result}")
     except ConfigurationError as e:
         logger.error(f"Configuration error: {e}")

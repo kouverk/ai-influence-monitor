@@ -71,7 +71,9 @@ A document intelligence pipeline that:
 
 **8. LLM Analysis Scripts** ✅
 - `assess_lobbying_impact.py` - Public interest concern scoring (v2 with taxonomy)
-- `detect_discrepancies.py` - Say vs Do contradiction detection (NEW)
+- `detect_discrepancies.py` - Say vs Do contradiction detection
+- `analyze_china_rhetoric.py` - China competition rhetoric deep-dive
+- `compare_positions.py` - Cross-company position comparison
 
 **Data in Iceberg:**
 
@@ -84,8 +86,10 @@ A document intelligence pipeline that:
 | `kouverk.lda_filings` | **339** | Lobbying filings (2023+) |
 | `kouverk.lda_activities` | **869** | Issue codes + descriptions |
 | `kouverk.lda_lobbyists` | **2,586** | Individual lobbyists |
-| `kouverk.lobbying_impact_scores` | 10 | Concern scores (v1) |
-| `kouverk.discrepancy_scores` | 10 | Discrepancy scores (v1) |
+| `kouverk.lobbying_impact_scores` | 10 | Public interest concern scores (v2) |
+| `kouverk.discrepancy_scores` | 10 | Say-vs-do contradiction scores |
+| `kouverk.china_rhetoric_analysis` | 11 | China rhetoric deep-dive |
+| `kouverk.position_comparisons` | 1 | Cross-company comparison |
 
 **Position Taxonomy:**
 - 633 positions with structured codes
@@ -100,9 +104,34 @@ A document intelligence pipeline that:
 - Anthropic: 2
 - Others: 0-1
 
+**Key Findings from Analysis:**
+
+*Concern Scores (0=good, 100=concerning):*
+- **Anthropic: 45/100** (lowest - less concerning)
+- Most others: 68-72/100
+- OpenAI: 72/100
+
+*Discrepancy Scores (0=consistent, 100=hypocrite):*
+- **Anthropic: 25/100** (most consistent)
+- OpenAI, Adobe, IBM, CCIA, TechNet: 35/100
+- **Google, Amazon: 75/100** (biggest gap between say vs do)
+
+*China Rhetoric Intensity (0=minimal, 100=heavy reliance):*
+- **OpenAI: 85/100** (most aggressive China framing)
+- Meta: 75/100
+- Palantir, TechNet, IBM, Microsoft, Cohere: 25/100
+- Anthropic: 15/100 (minimal use)
+- **Google: 2/100** (barely uses China framing)
+
+*Cross-Company Insights:*
+1. "Incumbent protection" pattern - leaders support high compliance costs they can absorb
+2. Safety positions correlate with marketing positioning, not just altruism
+3. Trade groups do "dirty work" of aggressive deregulation advocacy
+4. Universal support for government AI adoption reveals industry growth strategy
+5. Diversified tech giants face internal policy conflicts (Amazon opposes training data fair use due to content businesses)
+
 ### What's NOT Done
 - Dashboard/visualization layer
-- Re-run agentic scripts with v2 prompts (table schemas changed)
 - Process more documents (only 17 of 10,000+ available)
 
 ---
@@ -116,18 +145,26 @@ A document intelligence pipeline that:
 | `extract_positions.py` | Extract policy asks from PDF chunks | `ai_positions` |
 | `assess_lobbying_impact.py` | Score public interest concerns | `lobbying_impact_scores` |
 | `detect_discrepancies.py` | Find say-vs-do contradictions | `discrepancy_scores` |
+| `analyze_china_rhetoric.py` | Deep-dive China competition framing | `china_rhetoric_analysis` |
+| `compare_positions.py` | Cross-company position comparison | `position_comparisons` |
 
 ### Run Commands
 
 ```bash
-# Extract positions (already done)
+# Extract positions (already done - 633 positions from 17 companies)
 ./venv/bin/python include/scripts/agentic/extract_positions.py --limit=25
 
-# Assess lobbying impact (v2 prompt - re-run with --fresh)
-./venv/bin/python include/scripts/agentic/assess_lobbying_impact.py --fresh --limit=1
+# Assess lobbying impact (v2 - completed for 10 companies)
+./venv/bin/python include/scripts/agentic/assess_lobbying_impact.py --fresh
 
-# Detect discrepancies (v2 prompt - re-run with --fresh)
-./venv/bin/python include/scripts/agentic/detect_discrepancies.py --fresh --limit=1
+# Detect discrepancies (completed for 10 companies)
+./venv/bin/python include/scripts/agentic/detect_discrepancies.py --fresh
+
+# Analyze China rhetoric (completed for 11 companies)
+./venv/bin/python include/scripts/agentic/analyze_china_rhetoric.py --fresh
+
+# Cross-company comparison (completed)
+./venv/bin/python include/scripts/agentic/compare_positions.py --fresh
 
 # Dry run any script
 ./venv/bin/python include/scripts/agentic/detect_discrepancies.py --dry-run
@@ -137,24 +174,17 @@ A document intelligence pipeline that:
 
 ## Future AI Analyses
 
-Potential additional agentic scripts to build, ranked by value:
+Potential additional agentic scripts to build:
 
-### High Priority
+### Completed ✅
 
-**1. China Rhetoric Analyzer** (`analyze_china_rhetoric.py`)
-Deep-dive on the 55 positions using `china_competition` as argument:
-- Categorize claim types: capability claims, regulatory comparison, security framing, vague warnings
-- Flag verifiable vs unfalsifiable claims
-- Map which policy asks the China argument supports
-- Compare usage across company types (AI labs vs Big Tech vs trade groups)
-- **Why valuable:** OpenAI uses China 16 times, Palantir 6. Are they making the same arguments?
+**1. China Rhetoric Analyzer** (`analyze_china_rhetoric.py`) - DONE
+- Analyzed 11 companies with China rhetoric
+- Key finding: OpenAI has 85/100 rhetoric intensity, Anthropic only 15/100, Google 2/100
 
-**2. Cross-Company Position Comparator** (`compare_positions.py`)
-Direct head-to-head analysis:
-- Where do OpenAI and Anthropic agree/disagree?
-- Where do AI labs differ from Big Tech?
-- What's the "industry consensus" vs outlier positions?
-- **Why valuable:** Reveals coalition dynamics and fracture lines
+**2. Cross-Company Position Comparator** (`compare_positions.py`) - DONE
+- Analyzed 17 companies, 633 positions
+- Key finding: Trade groups do "dirty work" of aggressive advocacy that individual companies won't do publicly
 
 ### Medium Priority
 
@@ -209,6 +239,18 @@ Score depth of policy engagement:
 
 ## Session Log
 
+### Session 6: January 17, 2025
+- Re-ran `assess_lobbying_impact.py` with v2 prompt (10 companies, new schema)
+- Re-ran `detect_discrepancies.py` with v2 prompt (10 companies)
+- Built and ran `analyze_china_rhetoric.py` (11 companies with China framing)
+- Built and ran `compare_positions.py` (cross-company analysis)
+- Added `--fresh` flag to agentic scripts for clean reruns
+- Key findings:
+  - Anthropic lowest concern (45/100) and most consistent (25/100 discrepancy)
+  - Google/Amazon highest discrepancy (75/100) - biggest say-vs-do gap
+  - OpenAI most aggressive on China rhetoric (85/100), Google barely uses it (2/100)
+  - Trade groups advocate aggressive positions companies won't say publicly
+
 ### Session 5: January 17, 2025
 - Set up Astronomer project (`astro dev init`)
 - Updated all 6 DAGs for Astronomer-compatible paths
@@ -216,7 +258,6 @@ Score depth of policy engagement:
 - Built `detect_discrepancies.py` for say-vs-do contradiction detection
 - Added policy_ask → LDA issue code mapping for systematic comparison
 - Documented 6 potential future AI analyses
-- Note: Existing score tables use old schema; re-run with `--fresh` for new output
 
 ### Session 4: January 14, 2025
 - Created shared `include/config.py` for company lists and LDA filters

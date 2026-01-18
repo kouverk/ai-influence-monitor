@@ -33,22 +33,55 @@ Observations discovered during exploration. Add to this as you find interesting 
 
 ## Position Extraction Results (January 2025)
 
-**Extraction complete:** 607 positions from 112 chunks (17 priority companies)
+**Extraction complete:** 633 positions from 112 chunks (17 priority companies)
 
-### Topic Distribution
-| Topic | Count | Description |
-|-------|-------|-------------|
-| `china_competition` | 94 | National security, competitiveness framing |
-| `federal_regulation` | ~X | Federal AI oversight |
-| `ai_safety` | ~X | Risk concerns, alignment |
-| `state_regulation` | ~X | State-level laws (SB 1047, etc.) |
-| *...more topics...* | | |
+### Policy Ask Distribution
+| Policy Ask | Count | Description |
+|------------|-------|-------------|
+| `government_ai_adoption` | 70 | Federal government should use more AI |
+| `research_funding` | 43 | Government R&D money for AI |
+| `federal_preemption` | 31 | Block state AI laws with federal override |
+| `workforce_training` | 28 | Retraining programs |
+| `compute_infrastructure` | 25 | Data center support |
 
-*Note: Run `queries/06_positions_overview.sql` for exact counts*
+### Argument Distribution
+| Argument | Count | Description |
+|----------|-------|-------------|
+| `competitiveness` | 223 | "Must stay ahead economically" |
+| `innovation_harm` | 87 | "Kills startups/innovation" |
+| `china_competition` | 55 | "China will win if we don't" |
+| `job_creation` | 32 | "Creates jobs" |
+| `patchwork_problem` | 28 | "State-by-state is chaos" |
 
 ---
 
 ## China Rhetoric Analysis
+
+### Key Finding: OpenAI Uses China Framing 6x More Than Anthropic
+
+**55 positions** across 11 companies use `china_competition` as their primary argument.
+
+### China Rhetoric Intensity Scores (0=minimal, 100=heavy reliance)
+
+| Company | Intensity | China Positions | Total Positions | Assessment |
+|---------|-----------|-----------------|-----------------|------------|
+| **OpenAI** | **85/100** | 16 | 56 | mostly_rhetorical |
+| Meta | 75/100 | 10 | 50 | mostly_rhetorical |
+| Palantir | 25/100 | 6 | 28 | mostly_rhetorical |
+| TechNet | 25/100 | 5 | 47 | substantive |
+| IBM | 25/100 | 4 | 30 | mostly_rhetorical |
+| Microsoft | 25/100 | 4 | 49 | mostly_rhetorical |
+| Cohere | 25/100 | 2 | 35 | mostly_rhetorical |
+| DomelabsAI | 15/100 | 4 | 85 | mostly_rhetorical |
+| **Anthropic** | **15/100** | 2 | 41 | mostly_rhetorical |
+| CCIA | 15/100 | 1 | 38 | mostly_rhetorical |
+| **Google** | **2/100** | 1 | 43 | mostly_rhetorical |
+
+**Notable patterns:**
+- OpenAI uses China 29% of the time (16/56 positions) - most aggressive
+- Anthropic uses China 5% of the time (2/41 positions) - minimal use
+- Google barely uses China framing at all (1/43 positions = 2%)
+- TechNet is the only company rated "substantive" rather than "mostly_rhetorical"
 
 ### Rhetoric Analysis vs Fact-Checking: The Distinction
 
@@ -56,7 +89,7 @@ This project takes two complementary but distinct approaches to China-related cl
 
 | Approach | What It Does | Scope | Data Needed |
 |----------|--------------|-------|-------------|
-| **Rhetoric Analysis** (PRIMARY) | Categorizes *how* companies use China framing | All 94 positions | Already have it |
+| **Rhetoric Analysis** (PRIMARY) | Categorizes *how* companies use China framing | All 55 positions | Already have it |
 | **Fact-Checking** (OPTIONAL) | Verifies *whether* specific claims are true | Only verifiable claims | Requires FARA, CSET |
 
 **Why rhetoric analysis comes first:**
@@ -154,14 +187,29 @@ This keeps us in the "document intelligence" lane rather than becoming China pol
 
 ## Position Patterns
 
-### Common themes across companies
-- [ ] TBD - analyze after reviewing positions
+### Common Themes Across Companies
+- **Government AI adoption** - universal support (70 positions)
+- **Research funding** - all want more government R&D money (43 positions)
+- **Federal preemption** - most support blocking state AI laws (31 positions)
+- **Self-regulation** - industry-led standards preferred over mandates
 
-### Differences between AI labs vs Big Tech
-- [ ] TBD
+### AI Labs vs Big Tech
 
-### Trade group positions vs their members
-- [ ] TBD
+| Pattern | AI Labs | Big Tech |
+|---------|---------|----------|
+| Safety oversight | Support more | Prefer self-regulation |
+| China framing | Heavy use (OpenAI 85%, Meta 75%) | Minimal use (Google 2%) |
+| Liability shields | Mixed | Strong support |
+| Transparency | Generally support | Oppose (competitive info) |
+
+### Trade Group Positions vs Their Members
+
+Trade groups take more aggressive stances than individual companies:
+- **Federal preemption**: Trade groups push harder for state law override
+- **Existing agency authority**: Prefer current regulators over new AI agency
+- **Self-regulation**: More explicit about opposing mandates
+
+**Why?** Trade groups provide political cover - companies can benefit from aggressive advocacy without being directly associated with the positions.
 
 ---
 
@@ -201,15 +249,78 @@ Mix of in-house and external firms. Notable covered positions include former Sen
 
 ---
 
-## Discrepancy Observations (to be filled in)
+## Discrepancy Analysis Results (January 2025)
 
-*Add examples of "say one thing, lobby another" as you find them...*
+### Say-vs-Do Discrepancy Scores (0=consistent, 100=hypocrite)
 
-### Notable discrepancies
-- [ ] TBD
+| Company | Discrepancy Score | Key Finding |
+|---------|-------------------|-------------|
+| **Anthropic** | **25/100** | Most consistent - lobbying aligns with stated positions |
+| OpenAI | 35/100 | Moderate - uses national security framing in rhetoric but generic tech lobbying |
+| Adobe | 35/100 | Moderate consistency |
+| IBM | 35/100 | Defense contracting focus matches rhetoric |
+| CCIA | 35/100 | Core IP advocacy aligns with positions |
+| TechNet | 35/100 | Research/government adoption lobbying matches |
+| **Google** | **75/100** | Big gap - talks government AI adoption, lobbies exclusively on antitrust |
+| **Amazon** | **75/100** | Major discrepancy - 100% of lobbying on cloud/procurement, not AI policy |
 
-### Companies with highest consistency
-- [ ] TBD
+### Notable Discrepancy Patterns
 
-### Companies with lowest consistency
-- [ ] TBD
+**Google (75/100):** "Talks extensively about government AI adoption and national competitiveness but lobbies exclusively on antitrust defense and competition issues"
+
+**Amazon (75/100):** "Major discrepancy between AI policy rhetoric and lobbying reality - 100% of their lobbying focuses on cloud procurement and market access"
+
+**Anthropic (25/100):** "Strong consistency between stated positions and lobbying activity - major focus on AI safety and responsible deployment actually shows in lobbying priorities"
+
+---
+
+## Public Interest Concern Scores (January 2025)
+
+### Concern Scores (0=aligned with public interest, 100=concerning)
+
+| Company | Concern Score | Company Type |
+|---------|---------------|--------------|
+| **Anthropic** | **45/100** | ai_lab |
+| IBM | 68/100 | big_tech |
+| Amazon | 68/100 | big_tech |
+| US Chamber | 72/100 | trade_group |
+| Palantir | 72/100 | big_tech |
+| CCIA | 72/100 | trade_group |
+| Adobe | 72/100 | big_tech |
+| OpenAI | 72/100 | ai_lab |
+| Google | 72/100 | ai_lab |
+| TechNet | 72/100 | trade_group |
+
+**Key finding:** Anthropic is the only company scoring below 60/100. All trade groups scored 72/100 (highest tier).
+
+---
+
+## Cross-Company Position Comparison (January 2025)
+
+### Key Insights from 17 Companies, 633 Positions
+
+**1. "Incumbent Protection" Pattern**
+Market leaders (Google, Microsoft, Amazon) consistently support policies that raise compliance costs - which they can absorb but smaller competitors cannot. They oppose transparency requirements that might help competitors.
+
+**2. Safety Positions Correlate with Marketing**
+Companies marketing themselves as "responsible AI" (Anthropic, OpenAI) support more oversight, while pure-play commercial companies prefer self-regulation. Safety positions appear strategic, not purely altruistic.
+
+**3. Trade Groups Do the "Dirty Work"**
+Trade groups (CCIA, TechNet, US Chamber) advocate for aggressive deregulatory positions (federal preemption, existing agency authority) that individual companies might be reluctant to champion publicly. This provides political cover for member companies.
+
+**4. Universal Government AI Adoption Support**
+Every company supports government AI adoption - this reveals the industry's primary growth strategy: expanding the market through public sector adoption rather than just competing for existing private sector demand.
+
+**5. Internal Conflicts at Diversified Tech Giants**
+Diversified tech giants face internal policy conflicts. Example: Amazon opposes training data fair use because of their content businesses (Prime Video, Music, Audible), even though it might benefit their AI efforts.
+
+### Coalition Patterns Identified
+
+**Natural Allies:**
+- AI Labs (OpenAI, Anthropic) align on safety-focused oversight
+- Big Tech (Google, Microsoft, Amazon) align on incumbent-protective compliance
+- Trade Groups align on aggressive deregulation
+
+**Surprising Alignments:**
+- OpenAI and Anthropic (competitors) both support mandatory audits
+- Trade groups more aggressive than their member companies would be publicly
