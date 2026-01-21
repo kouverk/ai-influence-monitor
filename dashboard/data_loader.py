@@ -1,0 +1,140 @@
+"""
+Data loading layer for the AI Influence Tracker dashboard.
+
+Loads data from Iceberg tables via PyIceberg and returns as pandas DataFrames.
+"""
+
+import os
+import sys
+from pathlib import Path
+import pandas as pd
+from dotenv import load_dotenv
+
+# Load environment variables
+env_path = Path(__file__).parent.parent / ".env"
+load_dotenv(env_path)
+
+# Add parent to path for config import
+sys.path.insert(0, str(Path(__file__).parent.parent / "include"))
+from config import get_company_name_mapping, PRIORITY_COMPANIES
+
+
+def get_catalog():
+    """Initialize PyIceberg catalog."""
+    from pyiceberg.catalog import load_catalog
+
+    return load_catalog(
+        "glue",
+        **{
+            "type": "glue",
+            "region_name": os.getenv("AWS_DEFAULT_REGION", "us-west-2"),
+            "s3.access-key-id": os.getenv("AWS_ACCESS_KEY_ID"),
+            "s3.secret-access-key": os.getenv("AWS_SECRET_ACCESS_KEY"),
+            "s3.region": os.getenv("AWS_DEFAULT_REGION", "us-west-2"),
+        }
+    )
+
+
+def get_schema() -> str:
+    """Get schema name from environment."""
+    return os.getenv("SCHEMA", "kouverk")
+
+
+def load_table_as_df(table_name: str) -> pd.DataFrame:
+    """Load an Iceberg table as a pandas DataFrame."""
+    try:
+        catalog = get_catalog()
+        schema = get_schema()
+        full_name = f"{schema}.{table_name}"
+
+        table = catalog.load_table(full_name)
+        df = table.scan().to_pandas()
+        return df
+    except Exception as e:
+        print(f"Warning: Could not load table {table_name}: {e}")
+        return pd.DataFrame()
+
+
+def load_positions() -> pd.DataFrame:
+    """Load policy positions from ai_positions table."""
+    return load_table_as_df("ai_positions")
+
+
+def load_impact_scores() -> pd.DataFrame:
+    """Load lobbying impact scores."""
+    return load_table_as_df("lobbying_impact_scores")
+
+
+def load_discrepancy_scores() -> pd.DataFrame:
+    """Load say-vs-do discrepancy scores."""
+    return load_table_as_df("discrepancy_scores")
+
+
+def load_china_rhetoric() -> pd.DataFrame:
+    """Load China rhetoric analysis."""
+    return load_table_as_df("china_rhetoric_analysis")
+
+
+def load_filings() -> pd.DataFrame:
+    """Load LDA filings."""
+    return load_table_as_df("lda_filings")
+
+
+def load_activities() -> pd.DataFrame:
+    """Load LDA activities."""
+    return load_table_as_df("lda_activities")
+
+
+def load_position_comparisons() -> pd.DataFrame:
+    """Load cross-company position comparisons."""
+    return load_table_as_df("position_comparisons")
+
+
+def get_lda_name(submitter_name: str) -> str | None:
+    """Get LDA client name for a submitter name."""
+    mapping = get_company_name_mapping()
+    if submitter_name in mapping:
+        return mapping[submitter_name]["lda_name"]
+
+    # Try case-insensitive match
+    for name, info in mapping.items():
+        if name.lower() == submitter_name.lower():
+            return info["lda_name"]
+
+    return None
+
+
+def load_all_data() -> dict:
+    """Load all data needed for the dashboard.
+
+    Returns:
+        dict with keys:
+        - positions: policy positions DataFrame
+        - impact_scores: lobbying impact scores DataFrame
+        - discrepancy_scores: say-vs-do discrepancy scores DataFrame
+        - china_rhetoric: China rhetoric analysis DataFrame
+        - filings: LDA filings DataFrame
+        - activities: LDA activities DataFrame
+        - comparisons: position comparisons DataFrame
+    """
+    return {
+        "positions": load_positions(),
+        "impact_scores": load_impact_scores(),
+        "discrepancy_scores": load_discrepancy_scores(),
+        "china_rhetoric": load_china_rhetoric(),
+        "filings": load_filings(),
+        "activities": load_activities(),
+        "comparisons": load_position_comparisons(),
+    }
+
+
+# For testing
+if __name__ == "__main__":
+    print("Testing data loader...")
+
+    data = load_all_data()
+
+    for name, df in data.items():
+        print(f"\n{name}: {len(df)} rows")
+        if not df.empty:
+            print(f"  Columns: {list(df.columns)}")
