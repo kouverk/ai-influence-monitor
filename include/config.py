@@ -31,6 +31,20 @@ PRIORITY_COMPANIES = {
         {"name": "IBM", "lda_name": "IBM CORPORATION", "type": "big_tech"},
         {"name": "Palantir", "lda_name": "PALANTIR TECHNOLOGIES INC.", "type": "big_tech"},
         {"name": "Adobe", "lda_name": "ADOBE INC.", "type": "big_tech"},
+        {"name": "Intel", "lda_name": "INTEL CORPORATION", "type": "big_tech"},
+        {"name": "Cisco", "lda_name": "CISCO SYSTEMS, INC.", "type": "big_tech"},
+        {"name": "Qualcomm", "lda_name": "QUALCOMM INCORPORATED", "type": "big_tech"},
+        {"name": "Dell-Technologies", "lda_name": "DELL TECHNOLOGIES INC.", "type": "big_tech"},
+        {"name": "Atlassian", "lda_name": "ATLASSIAN CORPORATION", "type": "big_tech"},
+        {"name": "Cloudflare", "lda_name": "CLOUDFLARE, INC.", "type": "big_tech"},
+        {"name": "ServiceNow", "lda_name": "SERVICENOW, INC.", "type": "big_tech"},
+        {"name": "Snowflake", "lda_name": "SNOWFLAKE INC.", "type": "big_tech"},
+        {"name": "Workday", "lda_name": "WORKDAY, INC.", "type": "big_tech"},
+        {"name": "Twilio", "lda_name": "TWILIO INC.", "type": "big_tech"},
+    ],
+    # AI-focused companies
+    "ai_focused": [
+        {"name": "Snorkel", "lda_name": "SNORKEL AI, INC.", "type": "ai_focused"},
     ],
     # Trade Groups
     "trade_groups": [
@@ -122,7 +136,10 @@ LDA_AI_KEYWORDS = [
 # Keywords for classifying submitter type from PDF filename
 SUBMITTER_TYPE_KEYWORDS = {
     "ai_lab": ["openai", "anthropic", "google", "meta", "mistralai", "cohere", "xai"],
-    "big_tech": ["microsoft", "amazon", "apple", "nvidia", "ibm", "oracle", "salesforce", "palantir", "adobe"],
+    "big_tech": ["microsoft", "amazon", "apple", "nvidia", "ibm", "oracle", "salesforce", "palantir", "adobe",
+                 "intel", "cisco", "qualcomm", "dell", "atlassian", "cloudflare", "servicenow", "snowflake",
+                 "workday", "twilio"],
+    "ai_focused": ["snorkel", "scale.ai", "labelbox", "weights", "wandb", "huggingface"],
     "trade_group": ["ccia", "technet", "bsa", "iti", "chamber", "acc"],
 }
 

@@ -93,15 +93,66 @@ def load_position_comparisons() -> pd.DataFrame:
 def get_lda_name(submitter_name: str) -> str | None:
     """Get LDA client name for a submitter name."""
     mapping = get_company_name_mapping()
-    if submitter_name in mapping:
-        return mapping[submitter_name]["lda_name"]
 
-    # Try case-insensitive match
+    # Strip common suffixes from submitter name
+    clean_name = submitter_name
+    for suffix in ["-AI", "-ai", "_AI", "_ai"]:
+        if clean_name.endswith(suffix):
+            clean_name = clean_name[:-len(suffix)]
+            break
+
+    # Also handle names like "Ryan-Hagemann-IBM-AI" -> try to find "IBM"
+    name_parts = clean_name.replace("-", " ").replace("_", " ").split()
+
+    # Direct match
+    if clean_name in mapping:
+        return mapping[clean_name]["lda_name"]
+
+    # Case-insensitive match
     for name, info in mapping.items():
-        if name.lower() == submitter_name.lower():
+        if name.lower() == clean_name.lower():
             return info["lda_name"]
 
+    # Partial match - check if any config name is in the submitter name
+    for name, info in mapping.items():
+        if name.lower() in clean_name.lower():
+            return info["lda_name"]
+
+    # Check if any part of the name matches a config name
+    for part in name_parts:
+        for name, info in mapping.items():
+            if name.lower() == part.lower():
+                return info["lda_name"]
+
     return None
+
+
+# LDA client name aliases - map canonical name to all variants that should be summed
+LDA_NAME_ALIASES = {
+    "OPENAI": ["OPENAI", "OPENAI OPCO, LLC", "OPENAI, INC."],
+    "ANTHROPIC": ["ANTHROPIC", "ANTHROPIC, PBC", "AQUIA GROUP ON BEHALF OF ANTHROPIC, PBC"],
+    "TECHNET": ["TECHNET", "TECHNOLOGY NETWORK (AKA TECHNET)", "TECHNOLOGY NETWORK AKA TECHNET"],
+    "GOOGLE LLC": ["GOOGLE LLC", "GOOGLE CLIENT SERVICES LLC (FKA GOOGLE LLC)"],
+    "PALANTIR TECHNOLOGIES INC.": ["PALANTIR TECHNOLOGIES INC.", "J.A. GREEN AND COMPANY (FOR PALANTIR TECHNOLOGIES INC.)"],
+    "U.S. CHAMBER OF COMMERCE": [
+        "U.S. CHAMBER OF COMMERCE",
+        "U.S. CHAMBER OF COMMERCE CENTER FOR CAPITAL MARKETS COMPETITIVENESS",
+        "U.S. CHAMBER OF COMMERCE GLOBAL INNOVATION POLICY CENTER",
+        "U.S. CHAMBER OF COMMERCE INSTITUTE FOR LEGAL REFORM",
+        "U.S. CHAMBER OF COMMERCE, GLOBAL INTELLECTUAL PROPERTY CENTER",
+    ],
+}
+
+
+def get_lda_aliases(lda_name: str) -> list[str]:
+    """Get all LDA client name variants for a canonical name."""
+    if lda_name in LDA_NAME_ALIASES:
+        return LDA_NAME_ALIASES[lda_name]
+    # Also check if the lda_name is an alias itself
+    for canonical, aliases in LDA_NAME_ALIASES.items():
+        if lda_name.upper() in [a.upper() for a in aliases]:
+            return aliases
+    return [lda_name]
 
 
 def load_all_data() -> dict:

@@ -194,7 +194,8 @@ def render_company_deep_dive(data: dict):
 
     # Company selector
     companies = sorted(positions_df["submitter_name"].unique())
-    selected_company = st.selectbox("Select Company", companies)
+    default_idx = companies.index("OpenAI") if "OpenAI" in companies else 0
+    selected_company = st.selectbox("Select Company", companies, index=default_idx)
 
     if not selected_company:
         return
@@ -273,11 +274,13 @@ def render_company_deep_dive(data: dict):
         st.caption("From Senate LDA lobbying disclosures")
 
         # Get lobbying data for this company (need to match by LDA name)
-        from data_loader import get_lda_name
+        from data_loader import get_lda_name, get_lda_aliases
         lda_name = get_lda_name(selected_company)
 
         if lda_name and not filings_df.empty:
-            company_filings = filings_df[filings_df["client_name"].str.upper() == lda_name.upper()]
+            # Get all aliases for this company's LDA name
+            aliases = get_lda_aliases(lda_name)
+            company_filings = filings_df[filings_df["client_name"].str.upper().isin([a.upper() for a in aliases])]
 
             if not company_filings.empty:
                 total_spend = company_filings["expenses"].sum()
@@ -324,7 +327,18 @@ def render_company_deep_dive(data: dict):
                 if isinstance(discrepancies, list):
                     for d in discrepancies[:3]:
                         if isinstance(d, dict):
-                            st.warning(f"• {d.get('description', d.get('area', str(d)))}")
+                            # Format the discrepancy nicely
+                            disc_type = d.get('type', '').replace('_', ' ').title()
+                            policy = d.get('policy_ask', '').replace('_', ' ').title()
+                            interpretation = d.get('interpretation', '')
+                            severity = d.get('severity', '')
+
+                            if severity == 'significant':
+                                st.error(f"**{policy}** ({disc_type}): {interpretation}")
+                            elif severity == 'moderate':
+                                st.warning(f"**{policy}** ({disc_type}): {interpretation}")
+                            else:
+                                st.info(f"**{policy}** ({disc_type}): {interpretation}")
                         else:
                             st.warning(f"• {d}")
                 else:
@@ -335,7 +349,29 @@ def render_company_deep_dive(data: dict):
         # Lobbying priorities vs rhetoric
         if "lobbying_priorities_vs_rhetoric" in row.index and row["lobbying_priorities_vs_rhetoric"]:
             st.markdown("**Lobbying vs. Rhetoric:**")
-            st.write(row["lobbying_priorities_vs_rhetoric"])
+            try:
+                import json
+                lvr = row["lobbying_priorities_vs_rhetoric"]
+                if isinstance(lvr, str):
+                    lvr = json.loads(lvr)
+                if isinstance(lvr, dict):
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.markdown("*Top Lobbying Areas:*")
+                        for area in lvr.get("top_lobbying_areas", []):
+                            st.write(f"• {area}")
+                    with col2:
+                        st.markdown("*Top Stated Priorities:*")
+                        for priority in lvr.get("top_stated_priorities", []):
+                            st.write(f"• {priority.replace('_', ' ').title()}")
+
+                    assessment = lvr.get("alignment_assessment", "")
+                    if assessment:
+                        st.markdown(f"*Assessment:* {assessment}")
+                else:
+                    st.write(lvr)
+            except Exception:
+                st.write(row["lobbying_priorities_vs_rhetoric"])
     else:
         st.info("No discrepancy analysis available for this company")
 
@@ -359,7 +395,7 @@ def render_cross_company_comparison(data: dict):
             st.caption("Say-vs-Do gap: 0 = consistent, 100 = hypocritical")
 
             if not discrepancy_df.empty:
-                df_sorted = discrepancy_df.sort_values("discrepancy_score", ascending=True)
+                df_sorted = discrepancy_df.sort_values("discrepancy_score", ascending=False)
 
                 fig = px.bar(
                     df_sorted,
@@ -383,7 +419,7 @@ def render_cross_company_comparison(data: dict):
             st.caption("How heavily companies invoke China competition")
 
             if not china_df.empty:
-                df_sorted = china_df.sort_values("rhetoric_intensity", ascending=True)
+                df_sorted = china_df.sort_values("rhetoric_intensity", ascending=False)
 
                 fig = px.bar(
                     df_sorted,
@@ -619,6 +655,215 @@ def render_position_explorer(data: dict):
     )
 
 
+def render_methodology():
+    """Section 5: Methodology - taxonomy definitions and scoring explanation."""
+    st.header("Methodology")
+    st.markdown("How we analyze AI company policy positions and lobbying activity.")
+
+    tab1, tab2, tab3, tab4 = st.tabs(["Policy Asks", "Arguments", "Scoring", "Data Sources"])
+
+    with tab1:
+        st.subheader("Policy Ask Taxonomy")
+        st.markdown("Policy asks are specific things companies want the government to do (or not do).")
+
+        st.markdown("### Categories")
+
+        categories = {
+            "regulatory_structure": "How AI should be governed (federal vs state, new vs existing agencies)",
+            "accountability": "Liability, audits, transparency, incident reporting",
+            "intellectual_property": "Training data, copyright, open source",
+            "national_security": "Export controls, China competition, defense AI",
+            "resources": "Funding, infrastructure, immigration, workforce",
+        }
+
+        for cat, desc in categories.items():
+            st.markdown(f"**{cat.replace('_', ' ').title()}**: {desc}")
+
+        st.divider()
+
+        st.markdown("### Policy Asks by Category")
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.markdown("**Regulatory Structure**")
+            reg_asks = {
+                "federal_preemption": "Federal law should override state laws",
+                "state_autonomy": "States should be able to regulate",
+                "new_federal_agency": "Create new AI oversight body",
+                "existing_agency_authority": "Use existing agencies (FTC/FDA/etc)",
+                "self_regulation": "Industry-led standards without mandates",
+                "international_harmonization": "Align with EU/international standards",
+            }
+            for ask, desc in reg_asks.items():
+                st.markdown(f"• `{ask}`: {desc}")
+
+            st.markdown("**Accountability**")
+            acc_asks = {
+                "liability_shield": "Protect developers from lawsuits",
+                "liability_framework": "Define who's responsible for AI harms",
+                "mandatory_audits": "Require third-party testing",
+                "voluntary_commitments": "Support industry self-commitments",
+                "transparency_requirements": "Mandate disclosures",
+                "incident_reporting": "Require breach/incident reporting",
+            }
+            for ask, desc in acc_asks.items():
+                st.markdown(f"• `{ask}`: {desc}")
+
+        with col2:
+            st.markdown("**Intellectual Property**")
+            ip_asks = {
+                "training_data_fair_use": "Allow copyrighted data for training",
+                "creator_compensation": "Pay content creators",
+                "model_weight_protection": "Treat weights as trade secrets",
+                "open_source_protection": "Don't restrict open source",
+            }
+            for ask, desc in ip_asks.items():
+                st.markdown(f"• `{ask}`: {desc}")
+
+            st.markdown("**National Security**")
+            ns_asks = {
+                "export_controls_strict": "More chip/model restrictions",
+                "export_controls_loose": "Fewer restrictions",
+                "government_ai_adoption": "More federal AI use",
+                "defense_ai_investment": "Military AI funding",
+            }
+            for ask, desc in ns_asks.items():
+                st.markdown(f"• `{ask}`: {desc}")
+
+            st.markdown("**Resources**")
+            res_asks = {
+                "research_funding": "Government R&D money",
+                "compute_infrastructure": "Data center support",
+                "energy_infrastructure": "Power grid for AI",
+                "immigration_reform": "AI talent visas",
+                "workforce_training": "Retraining programs",
+            }
+            for ask, desc in res_asks.items():
+                st.markdown(f"• `{ask}`: {desc}")
+
+    with tab2:
+        st.subheader("Argument Types")
+        st.markdown("Arguments are HOW companies justify their policy asks.")
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.markdown("**Economic Arguments**")
+            econ_args = {
+                "innovation_harm": '"Kills startups/innovation"',
+                "competitiveness": '"Must stay ahead economically"',
+                "job_creation": '"Creates jobs"',
+                "cost_burden": '"Too expensive to comply"',
+            }
+            for arg, desc in econ_args.items():
+                st.markdown(f"• `{arg}`: {desc}")
+
+            st.markdown("**Security Arguments**")
+            sec_args = {
+                "china_competition": '"China will win if we don\'t"',
+                "national_security": '"Defense/security requires this"',
+                "adversary_benefit": '"Helps bad actors"',
+            }
+            for arg, desc in sec_args.items():
+                st.markdown(f"• `{arg}`: {desc}")
+
+        with col2:
+            st.markdown("**Practical Arguments**")
+            prac_args = {
+                "technical_infeasibility": '"Can\'t be done technically"',
+                "patchwork_problem": '"State-by-state is chaos"',
+                "duplicative": '"Already regulated elsewhere"',
+                "premature": '"Too early to regulate"',
+            }
+            for arg, desc in prac_args.items():
+                st.markdown(f"• `{arg}`: {desc}")
+
+            st.markdown("**Rights/Values Arguments**")
+            rights_args = {
+                "free_speech": "First Amendment concerns",
+                "consumer_protection": "Protect users",
+                "creator_rights": "Protect artists/creators",
+                "civil_liberties": "Privacy, bias, fairness",
+                "safety_concern": "AI safety/alignment risks",
+            }
+            for arg, desc in rights_args.items():
+                st.markdown(f"• `{arg}`: {desc}")
+
+    with tab3:
+        st.subheader("How Scores Are Calculated")
+
+        st.markdown("### Discrepancy Score (0-100)")
+        st.markdown("""
+        Measures the gap between what companies **say** in public policy submissions
+        vs. what they **do** in their lobbying activity.
+
+        - **0 = Fully consistent**: Lobbying aligns with stated positions
+        - **50 = Moderate gap**: Some misalignment between rhetoric and lobbying
+        - **100 = Major contradiction**: Lobbying contradicts stated positions
+
+        **How it works:**
+        1. Extract policy positions from AI Action Plan submissions
+        2. Map positions to expected LDA issue codes
+        3. Compare to actual lobbying filings
+        4. LLM analyzes patterns and assigns score
+        """)
+
+        st.markdown("### Concern Score (0-100)")
+        st.markdown("""
+        Assesses public interest implications of a company's lobbying agenda.
+
+        - **0 = Public interest aligned**: Lobbying supports accountability, safety
+        - **50 = Mixed**: Some concerning and some positive aspects
+        - **100 = Critical concern**: Lobbying actively harms public interest
+
+        **Factors considered:**
+        - Regulatory capture signals (writing rules that benefit themselves)
+        - Safety vs. profit tensions
+        - Accountability avoidance (liability shields, opposing audits)
+        - Transparency opposition
+        """)
+
+        st.markdown("### China Rhetoric Intensity (0-100)")
+        st.markdown("""
+        Measures how heavily a company invokes "China competition" to justify positions.
+
+        - **0 = Minimal use**: Rarely mentions China
+        - **50 = Moderate**: Uses China framing for some positions
+        - **100 = Heavy reliance**: China is a primary justification
+
+        **Why it matters:**
+        China rhetoric can be a legitimate concern OR a rhetorical strategy to
+        avoid regulation. High intensity + low substantiation = potential red flag.
+        """)
+
+    with tab4:
+        st.subheader("Data Sources")
+
+        st.markdown("### AI Action Plan RFI Submissions")
+        st.markdown("""
+        - **What:** Public responses to Trump administration's Request for Information on AI policy
+        - **Citation:** 90 FR 9088 (Federal Register)
+        - **Volume:** 10,068 total submissions, 17 priority companies analyzed
+        - **URL:** [NITRD AI Action Plan](https://files.nitrd.gov/90-fr-9088/)
+        """)
+
+        st.markdown("### Senate LDA Lobbying Database")
+        st.markdown("""
+        - **What:** Quarterly lobbying disclosure filings
+        - **Contents:** Who lobbied, for whom, on what issues, how much spent
+        - **Filter:** 2023+ filings, AI-relevant issue codes (CPI, SCI, CPT, CSP, DEF, HOM)
+        - **URL:** [LDA Senate API](https://lda.senate.gov/api/)
+        """)
+
+        st.markdown("### LLM Analysis")
+        st.markdown("""
+        - **Model:** Claude claude-sonnet-4-20250514 (Anthropic)
+        - **Tasks:** Position extraction, discrepancy detection, impact assessment
+        - **Extraction:** 633 positions from 112 text chunks
+        """)
+
+
 def main():
     """Main app entry point."""
     # Load data
@@ -629,7 +874,7 @@ def main():
     st.sidebar.title("Navigation")
     page = st.sidebar.radio(
         "Go to",
-        ["Executive Summary", "Company Deep Dive", "Cross-Company Comparison", "Position Explorer"]
+        ["Executive Summary", "Company Deep Dive", "Cross-Company Comparison", "Position Explorer", "Methodology"]
     )
 
     st.sidebar.divider()
@@ -654,6 +899,8 @@ def main():
         render_cross_company_comparison(data)
     elif page == "Position Explorer":
         render_position_explorer(data)
+    elif page == "Methodology":
+        render_methodology()
 
 
 if __name__ == "__main__":

@@ -56,6 +56,9 @@ def get_table_names() -> dict:
         "lda_activities": f"{schema}.lda_activities",
         "lda_lobbyists": f"{schema}.lda_lobbyists",
         "lobbying_impact_scores": f"{schema}.lobbying_impact_scores",
+        "discrepancy_scores": f"{schema}.discrepancy_scores",
+        "china_rhetoric_analysis": f"{schema}.china_rhetoric_analysis",
+        "position_comparisons": f"{schema}.position_comparisons",
     }
 
 def iceberg_to_snowflake(table_name: str, iceberg_table_id: str, create_sql: str, dry_run: bool = False):
@@ -240,24 +243,101 @@ def main():
         dry_run
     )
 
-    # 6. Lobbying Impact Scores (10 rows)
+    # 6. Lobbying Impact Scores (10 rows) - v2 schema
     total_rows += iceberg_to_snowflake(
         "RAW_LOBBYING_IMPACT_SCORES",
         tables["lobbying_impact_scores"],
         """
-        CREATE TABLE IF NOT EXISTS RAW_LOBBYING_IMPACT_SCORES (
+        CREATE OR REPLACE TABLE RAW_LOBBYING_IMPACT_SCORES (
             SCORE_ID VARCHAR,
             COMPANY_NAME VARCHAR,
             COMPANY_TYPE VARCHAR,
             CONCERN_SCORE INTEGER,
             LOBBYING_AGENDA_SUMMARY VARCHAR,
+            TOP_CONCERNING_POLICY_ASKS VARCHAR,
             PUBLIC_INTEREST_CONCERNS VARCHAR,
             REGULATORY_CAPTURE_SIGNALS VARCHAR,
-            SAFETY_VS_PROFIT_TENSIONS VARCHAR,
+            CHINA_RHETORIC_ASSESSMENT VARCHAR,
+            ACCOUNTABILITY_STANCE VARCHAR,
             POSITIVE_ASPECTS VARCHAR,
             KEY_FLAGS VARCHAR,
             POSITIONS_COUNT INTEGER,
             LOBBYING_FILINGS_COUNT INTEGER,
+            MODEL VARCHAR,
+            PROCESSED_AT VARCHAR
+        )
+        """,
+        dry_run
+    )
+
+    # 7. Discrepancy Scores (10 rows)
+    total_rows += iceberg_to_snowflake(
+        "RAW_DISCREPANCY_SCORES",
+        tables["discrepancy_scores"],
+        """
+        CREATE TABLE IF NOT EXISTS RAW_DISCREPANCY_SCORES (
+            SCORE_ID VARCHAR,
+            COMPANY_NAME VARCHAR,
+            COMPANY_TYPE VARCHAR,
+            DISCREPANCY_SCORE INTEGER,
+            DISCREPANCIES VARCHAR,
+            CONSISTENT_AREAS VARCHAR,
+            LOBBYING_PRIORITIES_VS_RHETORIC VARCHAR,
+            CHINA_RHETORIC_ANALYSIS VARCHAR,
+            ACCOUNTABILITY_CONTRADICTION VARCHAR,
+            KEY_FINDING VARCHAR,
+            POSITIONS_COUNT INTEGER,
+            LOBBYING_FILINGS_COUNT INTEGER,
+            MODEL VARCHAR,
+            PROCESSED_AT VARCHAR
+        )
+        """,
+        dry_run
+    )
+
+    # 8. China Rhetoric Analysis (11 rows)
+    total_rows += iceberg_to_snowflake(
+        "RAW_CHINA_RHETORIC_ANALYSIS",
+        tables["china_rhetoric_analysis"],
+        """
+        CREATE TABLE IF NOT EXISTS RAW_CHINA_RHETORIC_ANALYSIS (
+            ANALYSIS_ID VARCHAR,
+            COMPANY_NAME VARCHAR,
+            COMPANY_TYPE VARCHAR,
+            RHETORIC_INTENSITY INTEGER,
+            CLAIM_CATEGORIZATION VARCHAR,
+            RHETORIC_PATTERNS VARCHAR,
+            POLICY_ASKS_SUPPORTED VARCHAR,
+            RHETORIC_ASSESSMENT VARCHAR,
+            COMPARISON_TO_OTHER_ARGUMENTS VARCHAR,
+            NOTABLE_QUOTES VARCHAR,
+            KEY_FINDING VARCHAR,
+            CHINA_POSITIONS_COUNT INTEGER,
+            TOTAL_POSITIONS_COUNT INTEGER,
+            MODEL VARCHAR,
+            PROCESSED_AT VARCHAR
+        )
+        """,
+        dry_run
+    )
+
+    # 9. Position Comparisons (1 row)
+    total_rows += iceberg_to_snowflake(
+        "RAW_POSITION_COMPARISONS",
+        tables["position_comparisons"],
+        """
+        CREATE TABLE IF NOT EXISTS RAW_POSITION_COMPARISONS (
+            COMPARISON_ID VARCHAR,
+            COMPANIES_ANALYZED VARCHAR,
+            COMPANY_COUNT INTEGER,
+            POSITION_COUNT INTEGER,
+            CONSENSUS_POSITIONS VARCHAR,
+            CONTESTED_POSITIONS VARCHAR,
+            COMPANY_TYPE_PATTERNS VARCHAR,
+            OUTLIER_POSITIONS VARCHAR,
+            COALITION_ANALYSIS VARCHAR,
+            ARGUMENT_PATTERNS VARCHAR,
+            KEY_FINDINGS VARCHAR,
             MODEL VARCHAR,
             PROCESSED_AT VARCHAR
         )

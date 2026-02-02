@@ -27,8 +27,13 @@ from datetime import datetime
 from typing import Optional
 
 import anthropic
+import pandas as pd
 import pyarrow as pa
 from pyiceberg.catalog import load_catalog
+
+# Add project root to path for config import
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+from include.config import get_pdf_filter_names
 from pyiceberg.schema import Schema
 from pyiceberg.types import (
     IntegerType,
@@ -283,10 +288,19 @@ def get_unprocessed_chunks(catalog, chunks_table_name: str, metadata_table_name:
         # Join
         merged = chunks_df.merge(metadata_df, on="document_id", how="left")
 
+        # Filter to only priority companies
+        priority_names = get_pdf_filter_names()
+        # Match submitter names that contain priority company names (case-insensitive)
+        priority_mask = merged["submitter_name"].apply(
+            lambda x: any(pn.lower() in str(x).lower() for pn in priority_names) if pd.notna(x) else False
+        )
+        merged = merged[priority_mask]
+        logger.info(f"Filtered to {len(merged)} chunks from priority companies")
+
         # Filter out already processed
         unprocessed = merged[~merged["chunk_id"].isin(processed_ids)]
 
-        logger.info(f"Found {len(unprocessed)} unprocessed chunks out of {len(chunks_df)} total")
+        logger.info(f"Found {len(unprocessed)} unprocessed chunks")
 
         if limit:
             unprocessed = unprocessed.head(limit)
