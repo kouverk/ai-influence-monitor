@@ -240,6 +240,12 @@ A key finding: Companies use "China competition" rhetoric strategically in polic
 
 ---
 
+## Live Demo
+
+**[AI Influence Tracker Dashboard](https://ai-influence-monitor-kouverk.streamlit.app/)**
+
+---
+
 ## Status
 
 **Complete** - DataExpert.io analytics engineering capstone project
@@ -252,7 +258,7 @@ A key finding: Companies use "China competition" rhetoric strategically in polic
 - [x] dbt models (10 staging + 6 marts)
 - [x] Airflow DAGs (6 DAGs)
 - [x] Streamlit dashboard
-- [ ] Deploy dashboard publicly
+- [x] Deploy dashboard publicly
 - [ ] Process remaining 9,900+ documents
 
 ---

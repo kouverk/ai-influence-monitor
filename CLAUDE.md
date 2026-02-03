@@ -137,9 +137,9 @@ A document intelligence pipeline that:
 - App: `dashboard/app.py`
 - 6 sections: Executive Summary, Company Deep Dive, Cross-Company Comparison, Bill-Level Analysis, Position Explorer, Methodology
 - Reads from Snowflake dbt staging views (not Iceberg)
+- **Live:** https://ai-influence-monitor-kouverk.streamlit.app/
 
 ### What's NOT Done
-- Deploy dashboard (currently local only)
 - Process more documents (only 30 of 10,000+ available)
 
 ---
