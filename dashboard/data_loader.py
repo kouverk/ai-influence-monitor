@@ -2,6 +2,7 @@
 Data loading layer for the AI Influence Tracker dashboard.
 
 Loads data from Snowflake tables (via dbt staging/marts) and returns as pandas DataFrames.
+Supports both local .env files and Streamlit Cloud secrets.
 """
 
 import os
@@ -10,13 +11,60 @@ from pathlib import Path
 import pandas as pd
 from dotenv import load_dotenv
 
-# Load environment variables
+# Load environment variables (for local development)
 env_path = Path(__file__).parent.parent / ".env"
 load_dotenv(env_path)
 
-# Add parent to path for config import
-sys.path.insert(0, str(Path(__file__).parent.parent / "include"))
-from config import get_company_name_mapping, PRIORITY_COMPANIES
+
+def get_secret(key: str, default: str = None) -> str:
+    """Get a secret from Streamlit secrets or environment variables.
+
+    Streamlit Cloud uses st.secrets, local dev uses .env files.
+    """
+    # Try Streamlit secrets first (for cloud deployment)
+    try:
+        import streamlit as st
+        if key in st.secrets:
+            return st.secrets[key]
+    except Exception:
+        pass
+
+    # Fall back to environment variables (for local development)
+    return os.getenv(key, default)
+
+
+# Add parent to path for config import (only works locally)
+try:
+    sys.path.insert(0, str(Path(__file__).parent.parent / "include"))
+    from config import get_company_name_mapping, PRIORITY_COMPANIES
+except ImportError:
+    # Fallback for Streamlit Cloud where include/ may not be accessible
+    # Inline the company mapping so dashboard works standalone
+    PRIORITY_COMPANIES = [
+        {"name": "OpenAI", "lda_name": "OPENAI", "type": "ai_lab"},
+        {"name": "Anthropic", "lda_name": "ANTHROPIC", "type": "ai_lab"},
+        {"name": "Google", "lda_name": "GOOGLE LLC", "type": "ai_lab"},
+        {"name": "Meta", "lda_name": "META PLATFORMS, INC.", "type": "ai_lab"},
+        {"name": "Microsoft", "lda_name": "MICROSOFT CORPORATION", "type": "big_tech"},
+        {"name": "Amazon", "lda_name": "AMAZON.COM SERVICES LLC", "type": "big_tech"},
+        {"name": "Apple", "lda_name": "APPLE INC.", "type": "big_tech"},
+        {"name": "IBM", "lda_name": "IBM CORPORATION", "type": "big_tech"},
+        {"name": "Palantir", "lda_name": "PALANTIR TECHNOLOGIES INC.", "type": "big_tech"},
+        {"name": "Salesforce", "lda_name": "SALESFORCE, INC.", "type": "big_tech"},
+        {"name": "Adobe", "lda_name": "ADOBE INC.", "type": "big_tech"},
+        {"name": "Oracle", "lda_name": "ORACLE CORPORATION", "type": "big_tech"},
+        {"name": "NVIDIA", "lda_name": "NVIDIA CORPORATION", "type": "big_tech"},
+        {"name": "Cohere", "lda_name": "COHERE INC.", "type": "ai_lab"},
+        {"name": "Inflection AI", "lda_name": "INFLECTION AI, INC.", "type": "ai_lab"},
+        {"name": "TechNet", "lda_name": "TECHNET", "type": "trade_group"},
+        {"name": "CCIA", "lda_name": "COMPUTER & COMMUNICATIONS INDUSTRY ASSOCIATION", "type": "trade_group"},
+        {"name": "BSA", "lda_name": "BSA | THE SOFTWARE ALLIANCE", "type": "trade_group"},
+        {"name": "ITI", "lda_name": "INFORMATION TECHNOLOGY INDUSTRY COUNCIL (ITI)", "type": "trade_group"},
+        {"name": "U.S. Chamber of Commerce", "lda_name": "U.S. CHAMBER OF COMMERCE", "type": "trade_group"},
+    ]
+
+    def get_company_name_mapping():
+        return {c["name"]: c for c in PRIORITY_COMPANIES}
 
 
 def get_snowflake_connection():
@@ -24,27 +72,52 @@ def get_snowflake_connection():
     import snowflake.connector
 
     return snowflake.connector.connect(
-        account=os.getenv("SNOWFLAKE_ACCOUNT"),
-        user=os.getenv("SNOWFLAKE_USER"),
-        password=os.getenv("SNOWFLAKE_PASSWORD"),
-        warehouse=os.getenv("SNOWFLAKE_WAREHOUSE"),
-        database=os.getenv("SNOWFLAKE_DATABASE"),
-        schema=os.getenv("SNOWFLAKE_SCHEMA"),
+        account=get_secret("SNOWFLAKE_ACCOUNT"),
+        user=get_secret("SNOWFLAKE_USER"),
+        password=get_secret("SNOWFLAKE_PASSWORD"),
+        warehouse=get_secret("SNOWFLAKE_WAREHOUSE"),
+        database=get_secret("SNOWFLAKE_DATABASE"),
+        # Don't set default schema - we use fully-qualified names for dbt tables
     )
 
 
-def load_table_as_df(table_name: str) -> pd.DataFrame:
-    """Load a Snowflake table as a pandas DataFrame."""
+# dbt schema configuration
+# These must match dbt_project.yml schema settings
+SNOWFLAKE_DATABASE = get_secret("SNOWFLAKE_DATABASE", "DATAEXPERT_STUDENT")
+DBT_BASE_SCHEMA = get_secret("SNOWFLAKE_SCHEMA", "KOUVERK_AI_INFLUENCE")
+DBT_STAGING_SCHEMA = f"{DBT_BASE_SCHEMA}_STAGING"
+DBT_MARTS_SCHEMA = f"{DBT_BASE_SCHEMA}_MARTS"
+
+
+def load_table_as_df(table_name: str, schema: str = None) -> pd.DataFrame:
+    """Load a Snowflake table as a pandas DataFrame.
+
+    Args:
+        table_name: Name of the table (without schema prefix)
+        schema: Full schema name. If None, uses DBT_STAGING_SCHEMA for STG_ tables,
+                DBT_MARTS_SCHEMA for FCT_/DIM_ tables.
+    """
+    # Auto-detect schema from table name prefix if not specified
+    if schema is None:
+        if table_name.upper().startswith("STG_"):
+            schema = DBT_STAGING_SCHEMA
+        elif table_name.upper().startswith(("FCT_", "DIM_")):
+            schema = DBT_MARTS_SCHEMA
+        else:
+            schema = DBT_BASE_SCHEMA
+
+    fully_qualified_name = f"{SNOWFLAKE_DATABASE}.{schema}.{table_name}"
+
     try:
         conn = get_snowflake_connection()
-        query = f"SELECT * FROM {table_name}"
+        query = f"SELECT * FROM {fully_qualified_name}"
         df = pd.read_sql(query, conn)
         # Lowercase column names for consistency with existing code
         df.columns = [col.lower() for col in df.columns]
         conn.close()
         return df
     except Exception as e:
-        print(f"Warning: Could not load table {table_name}: {e}")
+        print(f"Warning: Could not load table {fully_qualified_name}: {e}")
         return pd.DataFrame()
 
 

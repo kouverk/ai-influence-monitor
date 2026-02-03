@@ -283,7 +283,7 @@ def render_company_deep_dive(data: dict):
             company_filings = filings_df[filings_df["client_name"].str.upper().isin([a.upper() for a in aliases])]
 
             if not company_filings.empty:
-                total_spend = company_filings["expenses"].sum()
+                total_spend = company_filings["lobbying_expenses"].sum()
                 filing_count = len(company_filings)
 
                 st.metric("Total Lobbying Spend", f"${total_spend:,.0f}")
