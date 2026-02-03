@@ -90,6 +90,11 @@ def load_position_comparisons() -> pd.DataFrame:
     return load_table_as_df("position_comparisons")
 
 
+def load_bill_analysis() -> pd.DataFrame:
+    """Load bill-level coalition analysis."""
+    return load_table_as_df("bill_position_analysis")
+
+
 def get_lda_name(submitter_name: str) -> str | None:
     """Get LDA client name for a submitter name."""
     mapping = get_company_name_mapping()
@@ -167,6 +172,7 @@ def load_all_data() -> dict:
         - filings: LDA filings DataFrame
         - activities: LDA activities DataFrame
         - comparisons: position comparisons DataFrame
+        - bill_analysis: bill-level coalition analysis DataFrame
     """
     return {
         "positions": load_positions(),
@@ -176,6 +182,7 @@ def load_all_data() -> dict:
         "filings": load_filings(),
         "activities": load_activities(),
         "comparisons": load_position_comparisons(),
+        "bill_analysis": load_bill_analysis(),
     }
 
 

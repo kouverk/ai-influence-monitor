@@ -864,6 +864,252 @@ def render_methodology():
         """)
 
 
+def render_bill_analysis(data: dict):
+    """Section 6: Bill-Level Coalition Analysis - Quiet Lobbying patterns."""
+    st.header("Bill-Level Analysis")
+    st.markdown("### Who's lobbying without speaking? Who's speaking without lobbying?")
+
+    bill_df = data["bill_analysis"]
+
+    if bill_df.empty:
+        st.info("No bill analysis data available. Run map_regulatory_targets.py to generate.")
+        return
+
+    import json
+
+    # Parse JSON columns
+    def safe_json_load(val):
+        if pd.isna(val):
+            return []
+        if isinstance(val, list):
+            return val
+        try:
+            return json.loads(val)
+        except Exception:
+            return []
+
+    bill_df["quiet_lobbying_list"] = bill_df["quiet_lobbying"].apply(safe_json_load)
+    bill_df["lobbying_companies_list"] = bill_df["lobbying_companies"].apply(safe_json_load)
+    bill_df["supporting_list"] = bill_df["companies_supporting"].apply(safe_json_load)
+    bill_df["opposing_list"] = bill_df["companies_opposing"].apply(safe_json_load)
+
+    # Headline stats
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        st.metric("Bills Analyzed", len(bill_df))
+
+    with col2:
+        bills_with_lobbying = len(bill_df[bill_df["lobbying_filing_count"] > 0])
+        st.metric("Bills with Lobbying", bills_with_lobbying)
+
+    with col3:
+        total_quiet = bill_df["quiet_lobbying_list"].apply(len).sum()
+        st.metric("Quiet Lobbying Instances", int(total_quiet))
+
+    with col4:
+        contested = len(bill_df[(bill_df["supporting_list"].apply(len) > 0) & (bill_df["opposing_list"].apply(len) > 0)])
+        st.metric("Contested Bills", contested)
+
+    st.divider()
+
+    # Tabs for different views
+    tab1, tab2, tab3 = st.tabs(["Lobbying vs Positions", "Quiet Lobbying Leaderboard", "Bill Details"])
+
+    with tab1:
+        st.subheader("Bills Ranked by Lobbying Activity")
+        st.caption("Compare lobbying intensity to public positions taken")
+
+        # Sort by lobbying count
+        chart_df = bill_df[bill_df["lobbying_filing_count"] > 0].sort_values("lobbying_filing_count", ascending=True).copy()
+
+        if not chart_df.empty:
+            # Create bar chart
+            fig = go.Figure()
+
+            # Lobbying filings bar
+            fig.add_trace(go.Bar(
+                y=chart_df["bill_name"],
+                x=chart_df["lobbying_filing_count"],
+                name="Lobbying Filings",
+                orientation="h",
+                marker_color="#1f77b4"
+            ))
+
+            # Public positions bar
+            fig.add_trace(go.Bar(
+                y=chart_df["bill_name"],
+                x=chart_df["position_count"],
+                name="Public Positions",
+                orientation="h",
+                marker_color="#2ca02c"
+            ))
+
+            fig.update_layout(
+                height=400,
+                barmode="group",
+                legend=dict(orientation="h", yanchor="bottom", y=1.02),
+                xaxis_title="Count",
+                yaxis_title=""
+            )
+
+            st.plotly_chart(fig, use_container_width=True)
+
+            # Highlight key finding
+            section_230 = chart_df[chart_df["bill_id"] == "section_230"]
+            if not section_230.empty:
+                row = section_230.iloc[0]
+                st.error(f"**Section 230:** {row['lobbying_filing_count']} lobbying filings, {row['position_count']} public positions - Pure 'quiet lobbying'")
+
+            chips = chart_df[chart_df["bill_id"] == "chips_act"]
+            if not chips.empty:
+                row = chips.iloc[0]
+                st.warning(f"**CHIPS Act:** {row['lobbying_filing_count']} lobbying filings, {row['position_count']} public positions - Mostly quiet")
+
+    with tab2:
+        st.subheader("Quiet Lobbying Leaderboard")
+        st.caption("Companies lobbying on bills WITHOUT taking public positions")
+
+        # Build leaderboard
+        quiet_counts = {}
+        for _, row in bill_df.iterrows():
+            for company in row["quiet_lobbying_list"]:
+                # Clean up company name
+                clean = company.replace("TECHNOLOGY NETWORK AKA TECHNET", "TechNet").replace("AKA ", "")
+                if clean not in quiet_counts:
+                    quiet_counts[clean] = {"bills": [], "count": 0}
+                quiet_counts[clean]["bills"].append(row["bill_name"])
+                quiet_counts[clean]["count"] += 1
+
+        if quiet_counts:
+            # Sort by count
+            leaderboard = sorted(quiet_counts.items(), key=lambda x: x[1]["count"], reverse=True)
+
+            # Display as table
+            leaderboard_data = []
+            for company, info in leaderboard[:15]:
+                leaderboard_data.append({
+                    "Company": company,
+                    "Bills Lobbying Without Position": info["count"],
+                    "Bills": ", ".join(info["bills"][:3]) + ("..." if len(info["bills"]) > 3 else "")
+                })
+
+            st.dataframe(
+                pd.DataFrame(leaderboard_data),
+                use_container_width=True,
+                hide_index=True
+            )
+
+            # Chart
+            chart_data = pd.DataFrame([
+                {"company": k, "quiet_bills": v["count"]}
+                for k, v in leaderboard[:10]
+            ])
+
+            fig = px.bar(
+                chart_data,
+                x="quiet_bills",
+                y="company",
+                orientation="h",
+                labels={"quiet_bills": "Bills with Quiet Lobbying", "company": ""},
+                color="quiet_bills",
+                color_continuous_scale=["yellow", "orange", "red"],
+            )
+            fig.update_layout(
+                height=350,
+                showlegend=False,
+                yaxis=dict(autorange="reversed"),
+                coloraxis_showscale=False
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+        st.divider()
+
+        st.subheader("The Section 230 Silence")
+        st.markdown("""
+        **115 lobbying filings. Zero public positions.**
+
+        Companies spending money to influence Section 230 but refusing to state their position publicly:
+        """)
+
+        section_230_row = bill_df[bill_df["bill_id"] == "section_230"]
+        if not section_230_row.empty:
+            quiet = section_230_row.iloc[0]["quiet_lobbying_list"]
+            if quiet:
+                cols = st.columns(min(4, len(quiet)))
+                for i, company in enumerate(quiet[:4]):
+                    clean = company.replace("TECHNOLOGY NETWORK AKA TECHNET", "TechNet").replace("COMPUTER & COMMUNICATIONS INDUSTRY ASSOCIATION", "CCIA")
+                    with cols[i % 4]:
+                        st.warning(f"**{clean}**")
+
+    with tab3:
+        st.subheader("Bill Details")
+
+        # Bill selector
+        bill_names = bill_df["bill_name"].tolist()
+        selected_bill = st.selectbox("Select Bill", bill_names)
+
+        if selected_bill:
+            row = bill_df[bill_df["bill_name"] == selected_bill].iloc[0]
+
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+                st.metric("Lobbying Filings", row["lobbying_filing_count"])
+
+            with col2:
+                st.metric("Public Positions", row["position_count"])
+
+            with col3:
+                spend = row.get("lobbying_spend_estimate", 0)
+                if spend and spend > 0:
+                    st.metric("Est. Lobbying Spend", f"${spend:,.0f}")
+                else:
+                    st.metric("Est. Lobbying Spend", "N/A")
+
+            st.divider()
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+                st.markdown("**Companies Supporting:**")
+                supporting = row["supporting_list"]
+                if supporting:
+                    for c in supporting:
+                        st.success(f"• {c}")
+                else:
+                    st.info("No public support positions")
+
+                st.markdown("**Companies Opposing:**")
+                opposing = row["opposing_list"]
+                if opposing:
+                    for c in opposing:
+                        st.error(f"• {c}")
+                else:
+                    st.info("No public opposition positions")
+
+            with col2:
+                st.markdown("**Companies Lobbying:**")
+                lobbying = row["lobbying_companies_list"]
+                if lobbying:
+                    for c in lobbying[:10]:
+                        clean = c.replace("TECHNOLOGY NETWORK AKA TECHNET", "TechNet")
+                        st.write(f"• {clean}")
+                    if len(lobbying) > 10:
+                        st.write(f"... and {len(lobbying) - 10} more")
+                else:
+                    st.info("No lobbying filings found")
+
+                st.markdown("**Quiet Lobbying (no public position):**")
+                quiet = row["quiet_lobbying_list"]
+                if quiet:
+                    for c in quiet:
+                        clean = c.replace("TECHNOLOGY NETWORK AKA TECHNET", "TechNet")
+                        st.warning(f"• {clean}")
+                else:
+                    st.info("None - all lobbyists have public positions")
+
+
 def main():
     """Main app entry point."""
     # Load data
@@ -874,7 +1120,7 @@ def main():
     st.sidebar.title("Navigation")
     page = st.sidebar.radio(
         "Go to",
-        ["Executive Summary", "Company Deep Dive", "Cross-Company Comparison", "Position Explorer", "Methodology"]
+        ["Executive Summary", "Company Deep Dive", "Cross-Company Comparison", "Bill-Level Analysis", "Position Explorer", "Methodology"]
     )
 
     st.sidebar.divider()
@@ -897,6 +1143,8 @@ def main():
         render_company_deep_dive(data)
     elif page == "Cross-Company Comparison":
         render_cross_company_comparison(data)
+    elif page == "Bill-Level Analysis":
+        render_bill_analysis(data)
     elif page == "Position Explorer":
         render_position_explorer(data)
     elif page == "Methodology":

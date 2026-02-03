@@ -134,7 +134,7 @@ A document intelligence pipeline that:
 
 **9. Streamlit Dashboard** ✅
 - App: `dashboard/app.py`
-- 5 sections: Executive Summary, Company Deep Dive, Cross-Company Comparison, Position Explorer, Methodology
+- 6 sections: Executive Summary, Company Deep Dive, Cross-Company Comparison, Bill-Level Analysis, Position Explorer, Methodology
 - Reads directly from Iceberg tables
 
 ### What's NOT Done
@@ -254,6 +254,14 @@ Score depth of policy engagement:
 
 ## Session Log
 
+### Session 8: February 2, 2026
+- Built and ran `map_regulatory_targets.py` (Regulatory Target Mapper)
+- Created `bill_position_analysis` table with 21 bills analyzed
+- Key finding: "Quiet lobbying" pattern - Section 230 has 115 filings, 0 public positions
+- Added Glossary section to DATA_DICTIONARY.md (quiet lobbying, all talk, scores)
+- Added Bill-Level Analysis section to dashboard (3 tabs)
+- Updated INSIGHTS.md with Bill-Level Coalition Analysis findings
+
 ### Session 7: February 2, 2026
 - Completed LDA extraction for failed companies (Palantir: 55, Adobe: 13, Intel: 92 filings)
 - Final LDA totals: 970 filings, 3,051 activities, 11,518 lobbyists
@@ -263,7 +271,6 @@ Score depth of policy engagement:
   - `analyze_china_rhetoric.py`: 14 companies analyzed
   - `compare_positions.py`: 30 companies, 878 positions
 - Updated INSIGHTS.md with comprehensive findings
-- Documented Regulatory Target Mapper approach (future work)
 - Key insight: Market expansion policies (government AI adoption) achieve unanimous support
 
 ### Session 6: January 17, 2025
