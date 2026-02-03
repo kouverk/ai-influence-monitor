@@ -74,22 +74,24 @@ A document intelligence pipeline that:
 - `detect_discrepancies.py` - Say vs Do contradiction detection
 - `analyze_china_rhetoric.py` - China competition rhetoric deep-dive
 - `compare_positions.py` - Cross-company position comparison
+- `map_regulatory_targets.py` - Bill-level coalition analysis (no LLM)
 
 **Data in Iceberg:**
 
 | Table | Rows | Description |
 |-------|------|-------------|
-| `kouverk.ai_submissions_metadata` | 17 | Document info |
-| `kouverk.ai_submissions_text` | 17 | Full extracted text |
-| `kouverk.ai_submissions_chunks` | 112 | Chunks for LLM |
-| `kouverk.ai_positions` | **633** | Policy asks with taxonomy |
-| `kouverk.lda_filings` | **339** | Lobbying filings (2023+) |
-| `kouverk.lda_activities` | **869** | Issue codes + descriptions |
-| `kouverk.lda_lobbyists` | **2,586** | Individual lobbyists |
-| `kouverk.lobbying_impact_scores` | 10 | Public interest concern scores (v2) |
-| `kouverk.discrepancy_scores` | 10 | Say-vs-do contradiction scores |
-| `kouverk.china_rhetoric_analysis` | 11 | China rhetoric deep-dive |
+| `kouverk.ai_submissions_metadata` | 30 | Document info |
+| `kouverk.ai_submissions_text` | 30 | Full extracted text |
+| `kouverk.ai_submissions_chunks` | ~200 | Chunks for LLM |
+| `kouverk.ai_positions` | **878** | Policy asks with taxonomy |
+| `kouverk.lda_filings` | **970** | Lobbying filings (2023+) |
+| `kouverk.lda_activities` | **3,051** | Issue codes + descriptions |
+| `kouverk.lda_lobbyists` | **11,518** | Individual lobbyists |
+| `kouverk.lobbying_impact_scores` | 23 | Public interest concern scores (v2) |
+| `kouverk.discrepancy_scores` | 23 | Say-vs-do contradiction scores |
+| `kouverk.china_rhetoric_analysis` | 14 | China rhetoric deep-dive |
 | `kouverk.position_comparisons` | 1 | Cross-company comparison |
+| `kouverk.bill_position_analysis` | **21** | Bill-level coalition patterns |
 
 **Position Taxonomy:**
 - 633 positions with structured codes
@@ -130,9 +132,14 @@ A document intelligence pipeline that:
 4. Universal support for government AI adoption reveals industry growth strategy
 5. Diversified tech giants face internal policy conflicts (Amazon opposes training data fair use due to content businesses)
 
+**9. Streamlit Dashboard** ✅
+- App: `dashboard/app.py`
+- 5 sections: Executive Summary, Company Deep Dive, Cross-Company Comparison, Position Explorer, Methodology
+- Reads directly from Iceberg tables
+
 ### What's NOT Done
-- Dashboard/visualization layer
-- Process more documents (only 17 of 10,000+ available)
+- Deploy dashboard (currently local only)
+- Process more documents (only 30 of 10,000+ available)
 
 ---
 
@@ -147,6 +154,7 @@ A document intelligence pipeline that:
 | `detect_discrepancies.py` | Find say-vs-do contradictions | `discrepancy_scores` |
 | `analyze_china_rhetoric.py` | Deep-dive China competition framing | `china_rhetoric_analysis` |
 | `compare_positions.py` | Cross-company position comparison | `position_comparisons` |
+| `map_regulatory_targets.py` | Bill-level coalition analysis | `bill_position_analysis` |
 
 ### Run Commands
 
@@ -165,6 +173,9 @@ A document intelligence pipeline that:
 
 # Cross-company comparison (completed)
 ./venv/bin/python include/scripts/agentic/compare_positions.py --fresh
+
+# Bill-level coalition analysis (no LLM - rule-based)
+./venv/bin/python include/scripts/agentic/map_regulatory_targets.py --fresh
 
 # Dry run any script
 ./venv/bin/python include/scripts/agentic/detect_discrepancies.py --dry-run
@@ -186,21 +197,19 @@ Potential additional agentic scripts to build:
 - Analyzed 17 companies, 633 positions
 - Key finding: Trade groups do "dirty work" of aggressive advocacy that individual companies won't do publicly
 
+**3. Regulatory Target Mapper** (`map_regulatory_targets.py`) - DONE
+- Analyzed 21 bills/regulations comparing public positions to lobbying activity
+- Key finding: "Quiet lobbying" pattern - Section 230 has 115 lobbying filings but ZERO public positions
+- Only contested bill: EU AI Act (TechNet/CCIA support, Google/Meta oppose)
+
 ### Medium Priority
 
-**3. Trade Group Aggregator** (`analyze_trade_groups.py`)
+**4. Trade Group Aggregator** (`analyze_trade_groups.py`)
 Trade groups (CCIA, TechNet, US Chamber) represent multiple companies:
 - Identify "lowest common denominator" positions
 - Compare trade group positions to member companies
 - Flag where trade groups take more aggressive stances than members would publicly
 - **Why valuable:** Trade groups can advocate positions individual companies won't say
-
-**4. Regulatory Target Mapper** (`map_regulatory_targets.py`)
-The `target` field identifies specific bills/regulations:
-- Aggregate positions on specific targets (e.g., "California SB 1047")
-- Identify which companies oppose vs support each regulation
-- Cross-reference with lobbying on those issues
-- **Why valuable:** See coalition patterns on specific legislation
 
 ### Lower Priority
 
@@ -235,9 +244,27 @@ Score depth of policy engagement:
 - LLM Model: claude-sonnet-4-20250514
 - Chunking: 800 words, 100 word overlap
 
+**Key Concepts:** *(Full definitions in [DATA_DICTIONARY.md](docs/DATA_DICTIONARY.md#glossary))*
+- **Quiet Lobbying:** Companies file LDA lobbying disclosures but take NO public position on that legislation. Reveals hidden priorities. Example: Section 230 has 115 lobbying filings but zero public positions.
+- **All Talk:** Companies take public positions but DON'T lobby on those bills. May indicate virtue signaling or low-priority positions.
+- **Discrepancy Score:** 0-100 measuring say-vs-do gap. Anthropic: 25 (consistent), Google/Amazon: 72 (biggest gap).
+- **Concern Score:** 0-100 for public interest implications of lobbying agenda. Trade groups: 72, Anthropic: 45.
+
 ---
 
 ## Session Log
+
+### Session 7: February 2, 2026
+- Completed LDA extraction for failed companies (Palantir: 55, Adobe: 13, Intel: 92 filings)
+- Final LDA totals: 970 filings, 3,051 activities, 11,518 lobbyists
+- Re-ran all 4 agentic scripts with updated data:
+  - `assess_lobbying_impact.py`: 23 companies scored
+  - `detect_discrepancies.py`: 23 companies analyzed
+  - `analyze_china_rhetoric.py`: 14 companies analyzed
+  - `compare_positions.py`: 30 companies, 878 positions
+- Updated INSIGHTS.md with comprehensive findings
+- Documented Regulatory Target Mapper approach (future work)
+- Key insight: Market expansion policies (government AI adoption) achieve unanimous support
 
 ### Session 6: January 17, 2025
 - Re-ran `assess_lobbying_impact.py` with v2 prompt (10 companies, new schema)
@@ -283,4 +310,4 @@ Score depth of policy engagement:
 
 ---
 
-*Last updated: January 17, 2025*
+*Last updated: February 2, 2026*

@@ -73,7 +73,10 @@ class ConfigurationError(Exception):
 
 # API Configuration
 LDA_BASE_URL = "https://lda.senate.gov/api/v1"
-REQUEST_DELAY = 0.5  # seconds between requests (be nice to the API)
+REQUEST_DELAY = 2.0  # seconds between requests (be nice to the API)
+COMPANY_DELAY = 5.0  # seconds between companies
+MAX_RETRIES = 3  # retry on 429
+RETRY_BACKOFF = 30.0  # base backoff seconds on 429
 
 
 def get_required_env(var_name: str) -> str:
@@ -148,53 +151,71 @@ def fetch_filings_for_client(
 
     page = 1
     while url:
-        try:
-            logger.info(f"Fetching page {page} for {client_name} (year >= {min_year})...")
-            resp = requests.get(url, params=params if page == 1 else None, timeout=30)
-            resp.raise_for_status()
-            data = resp.json()
+        # Retry logic for rate limiting
+        for retry in range(MAX_RETRIES + 1):
+            try:
+                logger.info(f"Fetching page {page} for {client_name} (year >= {min_year})...")
+                resp = requests.get(url, params=params if page == 1 else None, timeout=30)
 
-            results = data.get("results", [])
+                if resp.status_code == 429:
+                    if retry < MAX_RETRIES:
+                        wait_time = RETRY_BACKOFF * (2 ** retry)  # exponential backoff
+                        logger.warning(f"Rate limited (429), waiting {wait_time}s before retry {retry + 1}/{MAX_RETRIES}...")
+                        time.sleep(wait_time)
+                        continue
+                    else:
+                        raise LDAAPIError(f"Rate limited after {MAX_RETRIES} retries for {client_name}")
 
-            # Filter to exact match if requested
-            if exact_match:
-                results = [
-                    f for f in results
-                    if f.get("client", {}).get("name", "").upper() == client_name.upper()
-                    or client_name.upper() in f.get("client", {}).get("name", "").upper()
-                ]
+                resp.raise_for_status()
+                break  # Success, exit retry loop
+            except requests.exceptions.RequestException as e:
+                if retry < MAX_RETRIES and "429" in str(e):
+                    wait_time = RETRY_BACKOFF * (2 ** retry)
+                    logger.warning(f"Request error, waiting {wait_time}s before retry...")
+                    time.sleep(wait_time)
+                    continue
+                raise LDAAPIError(f"Failed to fetch filings for {client_name}: {e}")
 
-            # Filter by year (in case API doesn't support year filter)
-            if min_year:
-                results = [
-                    f for f in results
-                    if f.get("filing_year", 0) >= min_year
-                ]
+        data = resp.json()
 
-            # Filter by issue codes - keep filing if ANY activity has a matching code
-            if issue_codes:
-                filtered_results = []
-                for filing in results:
-                    activities = filing.get("lobbying_activities", [])
-                    has_ai_issue = any(
-                        act.get("general_issue_code") in issue_codes
-                        for act in activities
-                    )
-                    if has_ai_issue or not activities:  # Keep filings with no activities too
-                        filtered_results.append(filing)
-                results = filtered_results
+        results = data.get("results", [])
 
-            all_filings.extend(results)
+        # Filter to exact match if requested
+        if exact_match:
+            results = [
+                f for f in results
+                if f.get("client", {}).get("name", "").upper() == client_name.upper()
+                or client_name.upper() in f.get("client", {}).get("name", "").upper()
+            ]
 
-            # Get next page URL
-            url = data.get("next")
-            params = None  # Next URL includes params
-            page += 1
+        # Filter by year (in case API doesn't support year filter)
+        if min_year:
+            results = [
+                f for f in results
+                if f.get("filing_year", 0) >= min_year
+            ]
 
-            time.sleep(REQUEST_DELAY)
+        # Filter by issue codes - keep filing if ANY activity has a matching code
+        if issue_codes:
+            filtered_results = []
+            for filing in results:
+                activities = filing.get("lobbying_activities", [])
+                has_ai_issue = any(
+                    act.get("general_issue_code") in issue_codes
+                    for act in activities
+                )
+                if has_ai_issue or not activities:  # Keep filings with no activities too
+                    filtered_results.append(filing)
+            results = filtered_results
 
-        except requests.exceptions.RequestException as e:
-            raise LDAAPIError(f"Failed to fetch filings for {client_name}: {e}")
+        all_filings.extend(results)
+
+        # Get next page URL
+        url = data.get("next")
+        params = None  # Next URL includes params
+        page += 1
+
+        time.sleep(REQUEST_DELAY)
 
     logger.info(f"Fetched {len(all_filings)} filings for {client_name} (year >= {min_year}, AI-relevant)")
     return all_filings
@@ -313,7 +334,7 @@ def extract_lda_filings(
     all_filings = []
     errors = []
 
-    for company in companies:
+    for i, company in enumerate(companies):
         try:
             filings = fetch_filings_for_client(company, exact_match=exact_match)
             all_filings.extend(filings)
@@ -321,6 +342,11 @@ def extract_lda_filings(
             error_msg = str(e)
             logger.warning(error_msg)
             errors.append({"company": company, "error": error_msg})
+
+        # Pause between companies to avoid rate limiting
+        if i < len(companies) - 1:
+            logger.info(f"Waiting {COMPANY_DELAY}s before next company...")
+            time.sleep(COMPANY_DELAY)
 
     if not all_filings:
         raise LDAAPIError("No filings were successfully fetched")

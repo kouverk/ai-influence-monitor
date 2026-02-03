@@ -285,7 +285,7 @@ LLM-assessed public interest implications of corporate lobbying - THE KEY ANALYS
 | `processed_at` | TIMESTAMP | When assessment ran |
 
 **Assessment script:** `include/scripts/agentic/assess_lobbying_impact.py`
-**Status:** ✅ Complete - 10 companies assessed
+**Status:** ✅ Complete - 23 companies assessed
 
 **Results (Jan 2025):**
 | Company | Type | Concern Score |
@@ -306,6 +306,35 @@ LLM-assessed public interest implications of corporate lobbying - THE KEY ANALYS
 - Liability shields to avoid accountability
 - Self-regulation instead of external oversight
 - China competition rhetoric to justify reduced oversight
+
+### `bill_position_analysis`
+Bill-level coalition analysis - compares public positions on specific legislation to lobbying activity.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `bill_id` | STRING (PK) | Normalized bill identifier (e.g., `chips_act`, `section_230`) |
+| `bill_name` | STRING | Human-readable name (e.g., "CHIPS and Science Act") |
+| `companies_supporting` | STRING (JSON) | Array of companies with public support positions |
+| `companies_opposing` | STRING (JSON) | Array of companies with public opposition positions |
+| `position_count` | INT | Total public positions on this bill |
+| `lobbying_filing_count` | INT | LDA filings mentioning this bill |
+| `lobbying_activity_count` | INT | LDA activities mentioning this bill |
+| `lobbying_companies` | STRING (JSON) | Companies lobbying on this bill |
+| `lobbying_spend_estimate` | DOUBLE | Estimated $ lobbying spend on this bill |
+| `quiet_lobbying` | STRING (JSON) | Companies lobbying WITHOUT public position (see Glossary) |
+| `all_talk` | STRING (JSON) | Companies with positions but NO lobbying activity |
+| `processed_at` | TIMESTAMP | When analysis ran |
+
+**Analysis script:** `include/scripts/agentic/map_regulatory_targets.py`
+**Status:** ✅ Complete - 21 bills analyzed
+
+**Key findings (Feb 2026):**
+| Bill | Lobbying Filings | Public Positions | Pattern |
+|------|------------------|------------------|---------|
+| Section 230 | 115 | 0 | Pure quiet lobbying |
+| CHIPS Act | 78 | 2 | Mostly quiet |
+| CREATE AI Act | 29 | 1 | Quiet lobbying |
+| EU AI Act | 4 | 4 | Only contested bill |
 
 ---
 
@@ -475,3 +504,74 @@ How `submitter_type` is assigned in extraction script:
 | `creator_rights` | Protect artists/creators |
 | `civil_liberties` | Privacy, bias, fairness |
 | `safety_concern` | AI safety/alignment risks |
+
+---
+
+## Glossary
+
+Key terms and concepts used in this project's analysis.
+
+### Quiet Lobbying
+
+**Definition:** When a company files lobbying disclosures (LDA filings) on specific legislation but takes NO public position on that legislation.
+
+**Why it matters:** Companies are spending money to influence policy on issues they don't want publicly associated with their brand. This reveals hidden priorities and potential concerns about public perception.
+
+**Example:** Section 230 has 115 lobbying filings from Meta, Microsoft, CCIA, and TechNet, but ZERO of these companies took a public position on Section 230 in their AI Action Plan submissions. They clearly care about it (they're paying lobbyists), but they don't want to publicly state their position.
+
+**How we detect it:** Compare `lobbying_companies` (from LDA filings) to `companies_supporting + companies_opposing` (from public positions). Companies appearing in lobbying but not in positions are "quiet lobbying."
+
+**Stored in:** `bill_position_analysis.quiet_lobbying` (JSON array)
+
+### All Talk
+
+**Definition:** When a company takes a public position on legislation but files NO lobbying disclosures on that specific bill.
+
+**Why it matters:** This may indicate:
+- Virtue signaling (saying the "right" thing without backing it up financially)
+- Strategic positioning on politically safe topics
+- Genuine positions they just don't prioritize in their lobbying budget
+
+**Example:** Multiple companies publicly position on CA SB 1047 and state AI legislation, but have no corresponding LDA filings mentioning those bills.
+
+**How we detect it:** Compare `companies_supporting + companies_opposing` (from public positions) to `lobbying_companies` (from LDA filings). Companies appearing in positions but not in lobbying are "all talk."
+
+**Stored in:** `bill_position_analysis.all_talk` (JSON array)
+
+### Discrepancy Score
+
+**Definition:** A 0-100 score measuring how much a company's public statements differ from their lobbying activity.
+- **0** = Perfectly consistent (says what they lobby for)
+- **100** = Maximum hypocrisy (says one thing, lobbies for opposite)
+
+**Example:** Anthropic scores 25/100 (most consistent). Google and Amazon score 72/100 (biggest gap between public AI policy rhetoric and actual lobbying priorities which focus on antitrust and procurement).
+
+**Stored in:** `discrepancy_scores.discrepancy_score`
+
+### Concern Score
+
+**Definition:** A 0-100 score measuring how much a company's lobbying agenda raises public interest concerns.
+- **0** = Lobbying agenda aligned with public interest
+- **100** = Lobbying agenda raises critical concerns
+
+**Factors:** Federal preemption of state protections, liability shields, self-regulation over external oversight, regulatory capture signals.
+
+**Example:** Trade groups (TechNet, CCIA, US Chamber) cluster at 72/100. Anthropic scores 45/100 (lower concern).
+
+**Stored in:** `lobbying_impact_scores.concern_score`
+
+### China Rhetoric Intensity
+
+**Definition:** A 0-100 score measuring how heavily a company relies on China competition framing in their policy arguments.
+- **0** = Minimal or no China framing
+- **100** = Heavy reliance on China rhetoric across many positions
+
+**Why it matters:** "China will win" can be:
+1. Legitimate national security concern
+2. Rhetorical strategy to avoid regulation
+
+High intensity + low substantiation = potential red flag.
+
+**Example:** OpenAI scores 85/100 (uses China in 29% of positions). Google scores 2/100 (barely uses it). Anthropic scores 15/100 (minimal use).
+
+**Stored in:** `china_rhetoric_analysis.rhetoric_intensity`
