@@ -47,10 +47,46 @@ models:
           - not_null
 
   - name: stg_lobbying_impact_scores
-    description: Staged LLM-assessed public interest concern scores
+    description: Staged LLM-assessed public interest concern scores (0-100)
     columns:
       - name: score_id
         description: Unique identifier for each company assessment
+        tests:
+          - unique
+          - not_null
+
+  - name: stg_discrepancy_scores
+    description: Staged say-vs-do discrepancy scores (0=consistent, 100=hypocrite)
+    columns:
+      - name: score_id
+        description: Unique identifier for each company assessment
+        tests:
+          - unique
+          - not_null
+
+  - name: stg_china_rhetoric
+    description: Staged China competition rhetoric analysis
+    columns:
+      - name: analysis_id
+        description: Unique identifier for each company analysis
+        tests:
+          - unique
+          - not_null
+
+  - name: stg_position_comparisons
+    description: Staged cross-company position comparisons
+    columns:
+      - name: comparison_id
+        description: Unique identifier for each comparison run
+        tests:
+          - unique
+          - not_null
+
+  - name: stg_bill_position_analysis
+    description: Staged bill-level coalition analysis with quiet lobbying detection
+    columns:
+      - name: bill_id
+        description: Canonical bill identifier
         tests:
           - unique
           - not_null

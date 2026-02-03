@@ -21,7 +21,7 @@ Observations discovered during exploration. Add to this as you find interesting 
 | Finding | Evidence |
 |---------|----------|
 | **Anthropic is most consistent** | Lowest discrepancy (25/100), lowest concern (45/100), minimal China rhetoric (15/100) |
-| **Google/Amazon have biggest say-vs-do gap** | Both score 75/100 discrepancy - talk AI policy, lobby on antitrust/procurement |
+| **Google/Amazon have biggest say-vs-do gap** | Both score 72/100 discrepancy - talk AI policy, lobby on antitrust/procurement |
 | **OpenAI most aggressive on China framing** | 85/100 rhetoric intensity, uses China in 29% of positions |
 | **Trade groups do the "dirty work"** | More aggressive on deregulation than their member companies |
 | **Universal support for government AI adoption** | Every company wants to expand the market via public sector |

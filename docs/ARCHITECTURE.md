@@ -13,57 +13,69 @@ Detailed technical reference for the AI Influence Tracker. **Read this when you 
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                         EXTRACT LAYER                                │
+│                         EXTRACT LAYER (to Iceberg)                   │
 ├─────────────────────────────────────────────────────────────────────┤
-│  Airflow DAGs:                                                       │
-│  - federal_register_monitor_dag (daily)                              │
-│  - regulations_gov_monitor_dag (daily)                               │
-│  - lda_lobbying_sync_dag (weekly)                                    │
-│  - opensecrets_refresh_dag (monthly)                                 │
-│  - ai_submissions_initial_load_dag (one-time)                        │
+│  Scripts (include/scripts/extraction/):                              │
+│  - extract_pdf_submissions.py  → ai_submissions_metadata/text/chunks │
+│  - extract_lda_filings.py      → lda_filings/activities/lobbyists   │
 └─────────────────────────────────────────────────────────────────────┘
                                 │
                                 ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│                      TRANSFORM LAYER (dbt)                          │
+│                    LLM ANALYSIS LAYER (Agentic)                      │
 ├─────────────────────────────────────────────────────────────────────┤
-│  Staging:                                                            │
-│  - stg_submissions (raw document text + metadata)                    │
-│  - stg_federal_register (new AI policy documents)                    │
-│  - stg_lda_filings (lobbying disclosures)                           │
-│  - stg_opensecrets (lobbying spend totals)                          │
-│                                                                      │
-│  Intermediate:                                                       │
-│  - int_llm_position_extraction (Claude API extracts positions)       │
-│  - int_entity_resolution (match companies across sources)            │
-│                                                                      │
-│  Marts:                                                              │
-│  - fct_policy_positions                                              │
-│  - fct_lobbying_activity                                             │
-│  - fct_discrepancy_scores                                            │
-│  - dim_company, dim_topic, dim_person                                │
+│  Scripts (include/scripts/agentic/):                                 │
+│  - extract_positions.py         → ai_positions (878 rows)           │
+│  - assess_lobbying_impact.py    → lobbying_impact_scores (23 rows)  │
+│  - detect_discrepancies.py      → discrepancy_scores (23 rows)      │
+│  - analyze_china_rhetoric.py    → china_rhetoric_analysis (14 rows) │
+│  - compare_positions.py         → position_comparisons (1 row)      │
+│  - map_regulatory_targets.py    → bill_position_analysis (21 rows)  │
 └─────────────────────────────────────────────────────────────────────┘
                                 │
                                 ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│                         LOAD LAYER                                   │
+│                   LOAD LAYER (Iceberg → Snowflake)                   │
 ├─────────────────────────────────────────────────────────────────────┤
-│  Iceberg (staging):                                                  │
-│  - ai_submissions_metadata, _text, _chunks                           │
+│  Script: export_to_snowflake.py                                      │
+│  - Exports all 10 Iceberg tables to Snowflake RAW_* tables          │
+│  - Full refresh (truncate + reload)                                  │
+│  - Total: 26,567 rows across all tables                              │
+└─────────────────────────────────────────────────────────────────────┘
+                                │
+                                ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                      TRANSFORM LAYER (dbt)                           │
+├─────────────────────────────────────────────────────────────────────┤
+│  Staging (10 views in KOUVERK_AI_INFLUENCE_STAGING):                 │
+│  - stg_ai_positions, stg_ai_submissions                              │
+│  - stg_lda_filings, stg_lda_activities, stg_lda_lobbyists           │
+│  - stg_lobbying_impact_scores, stg_discrepancy_scores               │
+│  - stg_china_rhetoric, stg_position_comparisons                      │
+│  - stg_bill_position_analysis                                        │
 │                                                                      │
-│  Snowflake (marts):                                                  │
-│  - fct_*, dim_* tables                                               │
+│  Marts (6 tables in KOUVERK_AI_INFLUENCE_MARTS):                     │
+│  - dim_company (84 companies)                                        │
+│  - fct_policy_positions (878 positions)                              │
+│  - fct_lobbying_quarterly (970 filings)                              │
+│  - fct_lobbying_impact (23 scores)                                   │
+│  - fct_company_analysis (30 companies with all scores)               │
+│  - fct_bill_coalitions (21 bills)                                    │
 └─────────────────────────────────────────────────────────────────────┘
                                 │
                                 ▼
 ┌─────────────────────────────────────────────────────────────────────┐
 │                      VISUALIZATION LAYER                             │
 ├─────────────────────────────────────────────────────────────────────┤
-│  Dashboard showing:                                                  │
-│  - Company "say vs. lobby" discrepancy scores                       │
-│  - Position breakdown by topic                                       │
-│  - Lobbying spend trends                                             │
-│  - Timeline of policy evolution                                      │
+│  Streamlit Dashboard (dashboard/app.py):                             │
+│  - Executive Summary: Key findings and scores                        │
+│  - Company Deep Dive: Per-company analysis                           │
+│  - Cross-Company Comparison: Position patterns                       │
+│  - Bill-Level Analysis: Quiet lobbying detection                     │
+│  - Position Explorer: Browse all positions                           │
+│  - Methodology: Data sources and approach                            │
+│                                                                      │
+│  Data: Reads from Snowflake dbt staging views                        │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -71,52 +83,45 @@ Detailed technical reference for the AI Influence Tracker. **Read this when you 
 
 ## Airflow DAG Structure
 
+### Main Pipeline DAG (`ai_influence_pipeline.py`)
+
+This is the primary orchestration DAG that runs the full pipeline.
+
 ```python
-# DAG 1: Federal Register Monitor (Daily)
-federal_register_monitor_dag
-├── check_for_new_ai_documents      # Query API for docs since last run
-├── download_new_documents          # Fetch full document content
-├── extract_text_from_pdfs          # PDF → text (if needed)
-├── load_to_staging                 # Insert to Iceberg
-└── trigger_llm_extraction_dag      # Trigger downstream
-
-# DAG 2: Regulations.gov Comments Monitor (Daily)
-regulations_gov_monitor_dag
-├── check_for_new_comments          # Query for comments on AI dockets
-├── download_new_comments           # Fetch comment content
-├── load_to_staging
-└── trigger_llm_extraction_dag
-
-# DAG 3: Senate LDA Sync (Weekly)
-lda_lobbying_sync_dag
-├── fetch_new_filings_since_last_run
-├── filter_ai_related_filings       # Filter by client name or issue code
-├── load_to_staging
-├── run_entity_resolution           # Match to dim_company
-└── trigger_discrepancy_recalc_dag
-
-# DAG 4: OpenSecrets Refresh (Monthly)
-opensecrets_refresh_dag
-├── download_bulk_data
-├── filter_ai_companies
-├── load_to_staging
-└── trigger_discrepancy_recalc_dag
-
-# DAG 5: LLM Position Extraction (Triggered)
-llm_extraction_dag
-├── get_unprocessed_documents       # Query for docs without positions
-├── batch_documents                 # Chunks of 10-20 for rate limits
-├── call_claude_api                 # With retry/backoff logic
-├── validate_llm_output             # Check JSON structure
-├── load_positions_to_staging
-└── trigger_dbt_run
-
-# DAG 6: Discrepancy Recalculation (Triggered)
-discrepancy_recalc_dag
-├── get_companies_with_new_data
-├── run_dbt_models                  # Rebuild fct_discrepancy_scores
-└── refresh_dashboard_cache
+# Main Pipeline (Daily or Manual Trigger)
+ai_influence_pipeline
+│
+├── [extract] Task Group
+│   ├── extract_pdf_submissions     # PDF text → Iceberg (parallel)
+│   └── extract_lda_filings         # LDA API → Iceberg (parallel)
+│
+├── [llm_extraction] Task Group
+│   └── extract_positions           # Claude API → ai_positions
+│
+├── [llm_analysis] Task Group (parallel with rule_analysis)
+│   ├── assess_lobbying_impact      # → lobbying_impact_scores
+│   ├── detect_discrepancies        # → discrepancy_scores
+│   ├── analyze_china_rhetoric      # → china_rhetoric_analysis
+│   └── compare_positions           # → position_comparisons
+│
+├── [rule_analysis] Task Group (parallel with llm_analysis)
+│   └── map_regulatory_targets      # → bill_position_analysis (no LLM)
+│
+└── [snowflake_sync] Task Group
+    ├── export_to_snowflake         # Iceberg → Snowflake RAW
+    ├── run_dbt                     # Build staging + marts
+    └── test_dbt                    # Validate data quality
 ```
+
+### Supporting DAGs
+
+| DAG | Purpose | Schedule |
+|-----|---------|----------|
+| `extract_submissions_dag` | Extract PDFs only | Manual |
+| `extract_lda_dag` | Extract LDA only | Manual |
+| `llm_extraction_dag` | Position extraction only | Manual |
+| `llm_impact_assessment_dag` | Impact scoring only | Manual |
+| `snowflake_sync_dag` | Sync + dbt only | Daily |
 
 ---
 
@@ -177,9 +182,9 @@ Example output:
 - "Which companies want liability shields?"
 - "What arguments are used against SB 1047?"
 
-### Lobbying Impact Assessment Prompt (ACTIVE)
+### Lobbying Impact Assessment Prompt (v2 - ACTIVE)
 
-This is the key analysis prompt used by `assess_lobbying_impact.py`. Unlike a simple consistency check, it assesses **public interest implications** of corporate lobbying.
+This is the key analysis prompt used by `assess_lobbying_impact.py`. Assesses **public interest implications** of corporate lobbying.
 
 ```python
 LOBBYING_IMPACT_PROMPT = """
@@ -188,93 +193,91 @@ Assess the public interest implications of this company's AI policy lobbying.
 <company>{company_name} ({company_type})</company>
 
 <public_policy_positions>
-These are positions the company submitted to the government's AI Action Plan RFI:
 {positions_json}
 </public_policy_positions>
 
 <lobbying_activity>
-These are their lobbying disclosure filings from the Senate LDA (what they're paying lobbyists to push):
 {lobbying_json}
 </lobbying_activity>
 
-Analyze what this company is actually trying to achieve through lobbying and assess the implications.
-
-Return JSON with these fields:
-
+Return JSON:
 {
-  "lobbying_agenda_summary": "<2-3 sentences: What is this company's overall lobbying agenda?>",
-  "concern_score": <0-100 integer - how concerning is this lobbying for public interest?>,
-  "public_interest_concerns": [
-    {
-      "concern": "<specific concern>",
-      "evidence": "<quote or lobbying activity supporting this>",
-      "who_harmed": "<who could be negatively affected>",
-      "severity": "<low|medium|high|critical>"
-    }
-  ],
-  "regulatory_capture_signals": ["<signs they're shaping regulations to benefit themselves>"],
-  "safety_vs_profit_tensions": ["<areas where lobbying prioritizes profit over safety>"],
-  "positive_aspects": ["<any lobbying that genuinely serves public interest>"],
-  "key_flags": ["<red flags journalists/regulators/public should know about>"]
+  "lobbying_agenda_summary": "<2-3 sentences>",
+  "concern_score": <0-100>,
+  "top_concerning_policy_asks": ["<most concerning asks with evidence>"],
+  "public_interest_concerns": [{"concern": "...", "evidence": "...", "who_harmed": "...", "severity": "..."}],
+  "regulatory_capture_signals": ["<signs of self-serving regulation shaping>"],
+  "china_rhetoric_assessment": "<how they use China competition framing>",
+  "accountability_stance": "<position on liability/external oversight>",
+  "positive_aspects": ["<genuinely public-interest aligned>"],
+  "key_flags": ["<red flags for journalists/regulators>"]
 }
 
-Scoring guide for concern_score:
-- 0-20: Lobbying appears aligned with public interest (rare)
-- 21-40: Minor concerns - mostly standard corporate advocacy
-- 41-60: Moderate concerns - some troubling patterns
-- 61-80: Significant concerns - lobbying could harm public
-- 81-100: Critical concerns - active efforts against public interest
-
-IMPORTANT analysis guidelines:
-- Don't just report what they said - analyze the IMPLICATIONS
-- "Opposing state regulation" isn't neutral - it means less oversight
-- "Preemption" means blocking states from protecting their citizens
-- "Self-regulation" means no external accountability
-- Liability shield requests mean victims can't seek recourse
-- Consider: If they get what they want, who benefits and who is harmed?
+Scoring: 0-20=aligned, 21-40=minor concerns, 41-60=moderate, 61-80=significant, 81-100=critical
 """
 ```
 
-**Key insight:** The original "discrepancy scoring" approach was flawed - it just showed companies are consistent in messaging (which is expected). This reframed prompt asks the right questions: What are they lobbying for? Why is it concerning? Who gets harmed?
+**Output table:** `lobbying_impact_scores` (23 companies scored)
 
-### China Rhetoric Classification Prompt (Planned)
+### Discrepancy Detection Prompt (v2 - ACTIVE)
+
+Used by `detect_discrepancies.py` to find say-vs-do contradictions.
+
+```python
+DISCREPANCY_PROMPT = """
+Compare this company's public policy positions to their lobbying activity.
+
+<public_positions>{positions_json}</public_positions>
+<lobbying_activity>{lobbying_json}</lobbying_activity>
+
+Return JSON:
+{
+  "discrepancy_score": <0-100>,
+  "discrepancies": [{"public_position": "...", "lobbying_behavior": "...", "significance": "..."}],
+  "consistent_areas": ["<where positions match lobbying>"],
+  "lobbying_priorities_vs_rhetoric": "<comparison>",
+  "china_rhetoric_analysis": "<how China framing compares to actual lobbying focus>",
+  "accountability_contradiction": "<gaps in accountability positions>",
+  "key_finding": "<primary takeaway>"
+}
+
+Scoring: 0=perfectly consistent, 100=maximum hypocrisy
+"""
+```
+
+**Output table:** `discrepancy_scores` (23 companies scored)
+
+### China Rhetoric Analysis Prompt (ACTIVE)
+
+Used by `analyze_china_rhetoric.py` for deep-dive on China competition framing.
 
 ```python
 CHINA_RHETORIC_PROMPT = """
-Analyze how this policy position uses China/competition framing.
+Analyze how this company uses China competition rhetoric in their AI policy positions.
 
-<position>
-{position_json}
-</position>
+<company>{company_name}</company>
+<positions_using_china_argument>{china_positions_json}</positions_using_china_argument>
+<all_positions>{all_positions_json}</all_positions>
 
-<original_quote>
-{supporting_quote}
-</original_quote>
-
-Classify the China-related claim and return JSON:
-
+Return JSON:
 {
-  "claim_type": "<capability|regulatory_comparison|security_framing|vague_competitiveness>",
-  "specific_claim": "<one sentence describing what is being claimed about China>",
-  "verifiable": <true|false>,
-  "verification_approach": "<how this claim could be fact-checked, or 'unfalsifiable' if not possible>",
-  "regulation_opposed": "<specific regulation being argued against, or 'none' if general>",
-  "rhetorical_devices": ["<list of persuasion techniques used>"]
+  "rhetoric_intensity": <0-100>,
+  "claim_categorization": [{"claim_type": "capability|regulatory|security|vague", "example": "..."}],
+  "rhetoric_patterns": ["<patterns in how China is invoked>"],
+  "policy_asks_supported": ["<which policy asks use China rhetoric>"],
+  "rhetoric_assessment": "<overall assessment>",
+  "comparison_to_other_arguments": "<how China compares to other arguments used>",
+  "notable_quotes": ["<key quotes>"],
+  "key_finding": "<primary takeaway>"
 }
 
-Claim type definitions:
-- capability: Claims about China's AI capabilities ("China will overtake us", "China is ahead")
-- regulatory_comparison: Claims about China's regulatory environment ("China doesn't regulate")
-- security_framing: National security arguments ("essential for defense", "strategic importance")
-- vague_competitiveness: Generic competition language without specific claims ("we must compete")
-
-Verifiability guide:
-- TRUE if claim references specific, checkable facts (publications, patents, laws, investments)
-- FALSE if claim is predictive, hypothetical, or uses unmeasurable concepts
+Scoring: 0=minimal China framing, 100=heavy reliance on China rhetoric
 """
 ```
 
-**Purpose:** This prompt enables systematic analysis of how companies use "China threat" framing in policy arguments. The goal is to categorize rhetoric patterns, not to prove/disprove whether China is actually a threat.
+**Output table:** `china_rhetoric_analysis` (14 companies with China rhetoric analyzed)
+
+**Key findings:** OpenAI scores 85/100 (most aggressive), Google scores 2/100 (barely uses it).
 
 **See:** [INSIGHTS.md](INSIGHTS.md) for the full analysis framework.
 
@@ -383,20 +386,20 @@ Use fuzzy matching (rapidfuzz) for unmatched entities, then manually verify.
 ## Environment Variables
 
 ```bash
-# AWS/Iceberg (required for extraction)
+# AWS/Iceberg (required for extraction to staging layer)
 AWS_ACCESS_KEY_ID=
 AWS_SECRET_ACCESS_KEY=
 AWS_DEFAULT_REGION=us-west-2
 AWS_S3_BUCKET_TABULAR=
 SCHEMA=kouverk
 
-# Snowflake (for marts later)
-SNOWFLAKE_ACCOUNT=
+# Snowflake (required for dbt models and dashboard)
+SNOWFLAKE_ACCOUNT=              # e.g., abc12345.us-east-1
 SNOWFLAKE_USER=
 SNOWFLAKE_PASSWORD=
-SNOWFLAKE_WAREHOUSE=
-SNOWFLAKE_DATABASE=
-SNOWFLAKE_SCHEMA=
+SNOWFLAKE_WAREHOUSE=            # e.g., COMPUTE_WH
+SNOWFLAKE_DATABASE=             # e.g., DATAEXPERT_STUDENT
+SNOWFLAKE_SCHEMA=               # e.g., KOUVERK_AI_INFLUENCE
 
 # APIs
 ANTHROPIC_API_KEY=              # Required for LLM extraction
@@ -447,13 +450,61 @@ REGULATIONS_GOV_API_KEY=        # Future: for regulations.gov API
 - Analyzes: What are they lobbying for? Who benefits/harmed? What's concerning?
 - Writes to Iceberg: `lobbying_impact_scores`
 - **Idempotent**: Tracks processed companies, uses `append()`
-- **Output fields**: concern_score (0-100), lobbying_agenda_summary, public_interest_concerns, regulatory_capture_signals, safety_vs_profit_tensions, key_flags
+- **Output fields**: concern_score (0-100), lobbying_agenda_summary, top_concerning_policy_asks, public_interest_concerns, regulatory_capture_signals, china_rhetoric_assessment, accountability_stance, positive_aspects, key_flags
 
 ```bash
 # Usage
 ./venv/bin/python include/scripts/agentic/assess_lobbying_impact.py           # Process all
 ./venv/bin/python include/scripts/agentic/assess_lobbying_impact.py --limit=1  # Process one
 ./venv/bin/python include/scripts/agentic/assess_lobbying_impact.py --dry-run  # Preview matches
+./venv/bin/python include/scripts/agentic/assess_lobbying_impact.py --fresh    # Clear and reprocess all
+```
+
+**`detect_discrepancies.py`** - Say-vs-Do contradiction detection
+- Compares public policy positions to lobbying activity
+- Finds gaps between what companies say publicly and what they lobby for
+- Writes to Iceberg: `discrepancy_scores`
+- **Output fields**: discrepancy_score (0-100), discrepancies, consistent_areas, lobbying_priorities_vs_rhetoric, china_rhetoric_analysis, accountability_contradiction, key_finding
+
+```bash
+# Usage
+./venv/bin/python include/scripts/agentic/detect_discrepancies.py --fresh  # Full reprocess
+./venv/bin/python include/scripts/agentic/detect_discrepancies.py --dry-run  # Preview only
+```
+
+**`analyze_china_rhetoric.py`** - China competition rhetoric deep-dive
+- Analyzes how companies use China competition arguments
+- Filters positions that use `china_competition` as primary/secondary argument
+- Writes to Iceberg: `china_rhetoric_analysis`
+- **Output fields**: rhetoric_intensity (0-100), claim_categorization, rhetoric_patterns, policy_asks_supported, rhetoric_assessment, comparison_to_other_arguments, notable_quotes, key_finding
+
+```bash
+# Usage
+./venv/bin/python include/scripts/agentic/analyze_china_rhetoric.py --fresh  # Full reprocess
+./venv/bin/python include/scripts/agentic/analyze_china_rhetoric.py --dry-run  # Preview only
+```
+
+**`compare_positions.py`** - Cross-company position comparison
+- Analyzes positions across all companies to find patterns
+- Identifies industry consensus, outliers, and strategic positioning
+- Writes to Iceberg: `position_comparisons` (1 row - comprehensive analysis)
+- **Output fields**: unanimous_positions, contested_positions, outlier_positions, strategic_patterns, cross_company_themes, key_finding
+
+```bash
+# Usage
+./venv/bin/python include/scripts/agentic/compare_positions.py --fresh  # Full reprocess
+```
+
+**`map_regulatory_targets.py`** - Bill-level coalition analysis (NO LLM)
+- Rule-based analysis of positions by regulatory target
+- Groups positions by target bill/regulation
+- Identifies companies supporting vs opposing each target
+- Writes to Iceberg: `bill_position_analysis`
+- **Output fields**: target_name, supporters, opposers, is_contested, coalition_dynamics
+
+```bash
+# Usage
+./venv/bin/python include/scripts/agentic/map_regulatory_targets.py --fresh  # Full reprocess
 ```
 
 ### Exploration Scripts (`include/scripts/exploration/`)
@@ -472,6 +523,16 @@ REGULATIONS_GOV_API_KEY=        # Future: for regulations.gov API
 ./venv/bin/python include/scripts/utils/check_progress.py
 ```
 
+**`export_to_snowflake.py`** - Iceberg → Snowflake export
+- Exports all 10 Iceberg tables to Snowflake RAW_* tables
+- Full refresh strategy (truncate + reload)
+- Uses Snowflake connector with pandas
+- Total: ~26,567 rows across all tables
+
+```bash
+./venv/bin/python include/scripts/utils/export_to_snowflake.py
+```
+
 ---
 
 ## Project Structure
@@ -484,23 +545,52 @@ ai-influence-monitor/
 │   ├── ARCHITECTURE.md          # This file - detailed reference
 │   └── INSIGHTS.md              # Findings and observations
 ├── include/
+│   ├── config.py                # Company lists, LDA filters, name mappings
 │   └── scripts/
 │       ├── extraction/          # Data loading scripts
 │       │   ├── extract_pdf_submissions.py
 │       │   └── extract_lda_filings.py
-│       ├── agentic/             # LLM-powered extraction
+│       ├── agentic/             # LLM-powered analysis (6 scripts)
 │       │   ├── extract_positions.py
-│       │   └── assess_lobbying_impact.py
+│       │   ├── assess_lobbying_impact.py
+│       │   ├── detect_discrepancies.py
+│       │   ├── analyze_china_rhetoric.py
+│       │   ├── compare_positions.py
+│       │   └── map_regulatory_targets.py
 │       ├── exploration/         # API exploration / research
 │       │   └── explore_lda_api.py
 │       └── utils/               # Helper scripts
-│           └── check_progress.py
+│           ├── check_progress.py
+│           └── export_to_snowflake.py
+├── dashboard/                   # Streamlit dashboard
+│   ├── app.py                   # Main dashboard entry point
+│   ├── data_loader.py           # Snowflake data loading
+│   └── pages/                   # Dashboard pages
+│       ├── executive_summary.py
+│       ├── company_deep_dive.py
+│       ├── cross_company.py
+│       ├── bill_analysis.py
+│       ├── position_explorer.py
+│       └── methodology.py
+├── dags/                        # Airflow DAGs (6 DAGs)
+│   ├── ai_influence_pipeline.py # Main orchestration DAG
+│   ├── extract_submissions_dag.py
+│   ├── extract_lda_dag.py
+│   ├── llm_extraction_dag.py
+│   ├── llm_impact_assessment_dag.py
+│   └── snowflake_sync_dag.py
+├── dbt/                         # dbt project
+│   └── ai_influence/
+│       ├── models/
+│       │   ├── staging/         # 10 staging views
+│       │   └── marts/           # 6 mart tables
+│       └── dbt_project.yml
 ├── queries/                     # SQL for Trino exploration
-├── dags/                        # Airflow DAGs (future)
-├── dbt/                         # dbt project (future)
 ├── data/                        # Downloaded PDFs (gitignored)
-├── .env                         # Config
-└── requirements.txt
+├── .env                         # Config (AWS, Snowflake, Anthropic)
+├── requirements.txt
+├── Dockerfile                   # Astronomer config
+└── packages.txt                 # Astronomer system packages
 ```
 
 ---

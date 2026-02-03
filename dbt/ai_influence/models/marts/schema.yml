@@ -50,3 +50,31 @@ models:
           - not_null
       - name: concern_score
         description: 0-100 score (higher = more concerning for public interest)
+
+  - name: fct_company_analysis
+    description: Comprehensive company analysis combining all LLM scores
+    columns:
+      - name: company_id
+        description: Surrogate key for company
+        tests:
+          - unique
+          - not_null
+      - name: concern_score
+        description: 0-100 public interest concern score
+      - name: discrepancy_score
+        description: 0-100 say-vs-do discrepancy score
+      - name: china_rhetoric_intensity
+        description: 0-100 China competition rhetoric intensity
+
+  - name: fct_bill_coalitions
+    description: Bill-level coalition analysis with quiet lobbying detection
+    columns:
+      - name: bill_id
+        description: Canonical bill identifier
+        tests:
+          - unique
+          - not_null
+      - name: is_contested
+        description: True if bill has both supporters and opponents
+      - name: is_pure_quiet_lobbying
+        description: True if bill has lobbying but no public positions

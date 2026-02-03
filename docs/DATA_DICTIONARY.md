@@ -20,7 +20,7 @@ Reference for all tables, columns, and data sources in this project.
 - **URL:** https://files.nitrd.gov/90-fr-9088/90-fr-9088-combined-responses.zip
 - **Key submitters:** OpenAI, Anthropic, Google, Meta, Microsoft, Amazon, trade groups, academics
 - **LLM Task:** Extract policy positions, classify pro-safety vs pro-speed
-- **Status:** ✅ Loaded (17 priority companies → 112 chunks in Iceberg)
+- **Status:** ✅ Loaded (30 priority companies → 10,068 documents in Iceberg)
 
 ### Source 2: Senate LDA Lobbying Database (PRIMARY)
 - **What:** Every lobbying disclosure filing - who lobbied, for whom, on what issues, how much spent
@@ -28,7 +28,7 @@ Reference for all tables, columns, and data sources in this project.
 - **URL:** https://lda.senate.gov/api/v1/
 - **Docs:** https://lda.senate.gov/api/
 - **LLM Task:** Match lobbying activity to stated positions, detect discrepancies
-- **Status:** ✅ Loaded (110 filings for OpenAI, Anthropic, Nvidia)
+- **Status:** ✅ Loaded (970 filings, 3,051 activities, 11,518 lobbyists for priority companies)
 
 **API Endpoints:**
 | Endpoint | Description |
@@ -212,7 +212,7 @@ Individual lobbyists per activity - one row per person.
 | `is_new` | BOOLEAN | New to this filing |
 | `processed_at` | TIMESTAMP | When extraction ran |
 
-**Current data (Jan 2025):** 110 filings, 236 activities, 624 lobbyists (OpenAI, Anthropic, Nvidia)
+**Current data (Feb 2026):** 970 filings, 3,051 activities, 11,518 lobbyists (all priority companies)
 
 ### `ai_positions`
 LLM-extracted **policy asks** - specific things companies want the government to do (or not do).
@@ -236,11 +236,10 @@ LLM-extracted **policy asks** - specific things companies want the government to
 | `processed_at` | TIMESTAMP | When extraction ran |
 
 **Extraction script:** `include/scripts/agentic/extract_positions.py`
-**Status:** ✅ Complete - 633 positions extracted from 112 chunks (17 priority companies)
+**Status:** ✅ Complete - 878 positions extracted (30 priority companies)
 
-**Extraction stats (Jan 2025):**
-- Total positions: 633
-- Avg positions/chunk: 5.9
+**Extraction stats (Feb 2026):**
+- Total positions: 878
 - Model: claude-sonnet-4-20250514
 
 **Top policy asks:**
@@ -274,9 +273,11 @@ LLM-assessed public interest implications of corporate lobbying - THE KEY ANALYS
 | `company_type` | STRING | `ai_lab`, `big_tech`, `trade_group` |
 | `concern_score` | INT | 0-100 (0=public interest aligned, 100=critical concern) |
 | `lobbying_agenda_summary` | STRING | 2-3 sentence summary of what they're lobbying for |
+| `top_concerning_policy_asks` | STRING (JSON) | Most concerning policy asks with evidence |
 | `public_interest_concerns` | STRING (JSON) | Array of specific concerns with evidence, who_harmed, severity |
 | `regulatory_capture_signals` | STRING (JSON) | Signs they're shaping regulations for self-benefit |
-| `safety_vs_profit_tensions` | STRING (JSON) | Areas where lobbying prioritizes profit over safety |
+| `china_rhetoric_assessment` | STRING | Assessment of China competition framing |
+| `accountability_stance` | STRING | Assessment of position on liability/oversight |
 | `positive_aspects` | STRING (JSON) | Any lobbying genuinely serving public interest |
 | `key_flags` | STRING (JSON) | Red flags for journalists/regulators/public |
 | `positions_count` | INT | Number of policy positions analyzed |
@@ -287,7 +288,7 @@ LLM-assessed public interest implications of corporate lobbying - THE KEY ANALYS
 **Assessment script:** `include/scripts/agentic/assess_lobbying_impact.py`
 **Status:** ✅ Complete - 23 companies assessed
 
-**Results (Jan 2025):**
+**Results (Feb 2026):**
 | Company | Type | Concern Score |
 |---------|------|---------------|
 | Google | ai_lab | 75/100 |
@@ -306,6 +307,93 @@ LLM-assessed public interest implications of corporate lobbying - THE KEY ANALYS
 - Liability shields to avoid accountability
 - Self-regulation instead of external oversight
 - China competition rhetoric to justify reduced oversight
+
+### `discrepancy_scores`
+LLM-assessed say-vs-do discrepancy scores comparing public positions to lobbying activity.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `score_id` | STRING (PK) | `{company_name}_{timestamp}` |
+| `company_name` | STRING | Canonical company name |
+| `company_type` | STRING | `ai_lab`, `big_tech`, `trade_group` |
+| `discrepancy_score` | INT | 0-100 (0=consistent, 100=hypocrite) |
+| `discrepancies` | STRING (JSON) | Array of identified inconsistencies |
+| `consistent_areas` | STRING (JSON) | Areas where positions match lobbying |
+| `lobbying_priorities_vs_rhetoric` | STRING | Comparison of stated vs actual priorities |
+| `china_rhetoric_analysis` | STRING | Analysis of China framing in context |
+| `accountability_contradiction` | STRING | Gaps in accountability positions |
+| `key_finding` | STRING | Primary takeaway |
+| `positions_count` | INT | Number of policy positions analyzed |
+| `lobbying_filings_count` | INT | Number of LDA filings analyzed |
+| `model` | STRING | Model used |
+| `processed_at` | TIMESTAMP | When assessment ran |
+
+**Assessment script:** `include/scripts/agentic/detect_discrepancies.py`
+**Status:** ✅ Complete - 23 companies assessed
+
+**Results (Feb 2026):**
+| Company | Type | Discrepancy Score |
+|---------|------|-------------------|
+| Anthropic | ai_lab | 25/100 (most consistent) |
+| OpenAI | ai_lab | 35/100 |
+| IBM | big_tech | 35/100 |
+| Google | ai_lab | 72/100 (biggest gap) |
+| Amazon | big_tech | 72/100 |
+
+### `china_rhetoric_analysis`
+LLM deep-dive on China competition rhetoric intensity and patterns.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `analysis_id` | STRING (PK) | `{company_name}_{timestamp}` |
+| `company_name` | STRING | Canonical company name |
+| `company_type` | STRING | `ai_lab`, `big_tech`, `trade_group` |
+| `rhetoric_intensity` | INT | 0-100 (0=minimal, 100=heavy reliance on China framing) |
+| `claim_categorization` | STRING (JSON) | Types of China claims made |
+| `rhetoric_patterns` | STRING (JSON) | Patterns in how China is invoked |
+| `policy_asks_supported` | STRING (JSON) | Which policy asks use China rhetoric |
+| `rhetoric_assessment` | STRING | Overall assessment of rhetoric |
+| `comparison_to_other_arguments` | STRING | How China compares to other arguments used |
+| `notable_quotes` | STRING (JSON) | Key quotes using China framing |
+| `key_finding` | STRING | Primary takeaway |
+| `china_positions_count` | INT | Positions using China argument |
+| `total_positions_count` | INT | Total positions analyzed |
+| `model` | STRING | Model used |
+| `processed_at` | TIMESTAMP | When assessment ran |
+
+**Assessment script:** `include/scripts/agentic/analyze_china_rhetoric.py`
+**Status:** ✅ Complete - 14 companies with China rhetoric analyzed
+
+**Results (Feb 2026):**
+| Company | Rhetoric Intensity |
+|---------|-------------------|
+| OpenAI | 85/100 (most aggressive) |
+| Meta | 75/100 |
+| Palantir | 25/100 |
+| Anthropic | 15/100 |
+| Google | 2/100 (barely uses it) |
+
+### `position_comparisons`
+LLM cross-company position comparison analysis (one row per analysis run).
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `comparison_id` | STRING (PK) | Unique identifier |
+| `companies_analyzed` | STRING (JSON) | Array of company names |
+| `company_count` | INT | Number of companies |
+| `position_count` | INT | Total positions analyzed |
+| `consensus_positions` | STRING (JSON) | Positions all/most companies agree on |
+| `contested_positions` | STRING (JSON) | Positions with significant disagreement |
+| `company_type_patterns` | STRING (JSON) | Patterns by company type |
+| `outlier_positions` | STRING (JSON) | Unusual positions |
+| `coalition_analysis` | STRING (JSON) | Identified coalitions/alliances |
+| `argument_patterns` | STRING (JSON) | Common argument patterns |
+| `key_findings` | STRING (JSON) | Top insights |
+| `model` | STRING | Model used |
+| `processed_at` | TIMESTAMP | When assessment ran |
+
+**Assessment script:** `include/scripts/agentic/compare_positions.py`
+**Status:** ✅ Complete - 30 companies, 878 positions analyzed
 
 ### `bill_position_analysis`
 Bill-level coalition analysis - compares public positions on specific legislation to lobbying activity.
@@ -340,56 +428,121 @@ Bill-level coalition analysis - compares public positions on specific legislatio
 
 ## Snowflake Tables (Analytics Layer)
 
-*Not yet implemented - will be created by dbt*
+All dbt models in database `DATAEXPERT_STUDENT`.
 
-### `fct_policy_positions`
-LLM-extracted positions from documents.
+### Staging Views (10 views in schema `KOUVERK_AI_INFLUENCE_STAGING`)
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `position_id` | STRING | `{document_id}_{position_index}` |
-| `company_id` | INT | FK to dim_company |
-| `document_id` | STRING | Source document |
-| `topic` | STRING | `ai_safety`, `state_regulation`, `federal_regulation`, etc. |
-| `stance` | STRING | `strong_support`, `support`, `neutral`, `oppose`, `strong_oppose` |
-| `supporting_quote` | STRING | Direct quote from document |
-| `confidence_score` | FLOAT | LLM confidence (0-1) |
-| `extracted_at` | TIMESTAMP | When LLM extraction ran |
+| View | Source | Rows | Description |
+|------|--------|------|-------------|
+| `STG_AI_POSITIONS` | RAW_AI_POSITIONS | 878 | Staged policy positions |
+| `STG_AI_SUBMISSIONS` | RAW_AI_SUBMISSIONS_METADATA | 10,068 | Staged submission metadata |
+| `STG_LDA_FILINGS` | RAW_LDA_FILINGS | 970 | Staged LDA filings |
+| `STG_LDA_ACTIVITIES` | RAW_LDA_ACTIVITIES | 3,051 | Staged LDA activities |
+| `STG_LDA_LOBBYISTS` | RAW_LDA_LOBBYISTS | 11,518 | Staged lobbyists |
+| `STG_LOBBYING_IMPACT_SCORES` | RAW_LOBBYING_IMPACT_SCORES | 23 | Staged concern scores |
+| `STG_DISCREPANCY_SCORES` | RAW_DISCREPANCY_SCORES | 23 | Staged discrepancy scores |
+| `STG_CHINA_RHETORIC` | RAW_CHINA_RHETORIC_ANALYSIS | 14 | Staged China rhetoric |
+| `STG_POSITION_COMPARISONS` | RAW_POSITION_COMPARISONS | 1 | Staged cross-company analysis |
+| `STG_BILL_POSITION_ANALYSIS` | RAW_BILL_POSITION_ANALYSIS | 21 | Staged bill coalitions |
 
-### `fct_lobbying_activity`
-Lobbying filings from Senate LDA.
+### Mart Tables (6 tables in schema `KOUVERK_AI_INFLUENCE_MARTS`)
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `filing_id` | STRING | LDA filing UUID |
-| `company_id` | INT | FK to dim_company |
-| `quarter_start` | DATE | Filing period start |
-| `quarter_end` | DATE | Filing period end |
-| `amount` | DECIMAL | Lobbying spend |
-| `issues` | ARRAY | Issue codes lobbied on |
-| `bills` | ARRAY | Specific bills mentioned |
-
-### `fct_discrepancy_scores`
-Computed scores comparing stated positions to lobbying activity.
-
-| Column | Type | Description |
-|--------|------|-------------|
-| `company_id` | INT | FK to dim_company |
-| `topic` | STRING | Policy topic |
-| `public_stance` | STRING | Aggregated from submissions |
-| `lobbying_stance` | STRING | Inferred from activity |
-| `discrepancy_score` | INT | 0 (consistent) to 100 (hypocrite) |
-| `evidence_summary` | STRING | LLM-generated explanation |
-
-### `dim_company`
-Company dimension with alias resolution.
+#### `DIM_COMPANY`
+Company dimension combining all sources.
 
 | Column | Type | Description |
 |--------|------|-------------|
 | `company_id` | INT | Surrogate key |
 | `company_name` | STRING | Canonical name |
-| `aliases` | ARRAY | All known variations |
-| `company_type` | STRING | `ai_lab`, `big_tech`, `trade_group`, etc. |
+| `company_type` | STRING | `ai_lab`, `big_tech`, `trade_group`, `unknown` |
+| `source_count` | INT | Number of sources this company appears in |
+| `has_multiple_sources` | BOOLEAN | Appears in more than one source |
+
+**Row count:** 84 companies
+
+#### `FCT_POLICY_POSITIONS`
+Policy positions with company dimension join.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `position_id` | STRING | Unique position identifier |
+| `company_id` | INT | FK to dim_company |
+| `company_name` | STRING | Company name |
+| `policy_ask` | STRING | Specific policy action requested |
+| `ask_category` | STRING | High-level category |
+| `stance` | STRING | `support`, `oppose`, `neutral` |
+| `primary_argument` | STRING | Main argument |
+| `supporting_quote` | STRING | Direct quote |
+| `confidence` | FLOAT | LLM confidence (0-1) |
+
+**Row count:** 878 positions
+
+#### `FCT_LOBBYING_QUARTERLY`
+Quarterly lobbying filings with company dimension join.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `filing_uuid` | STRING | LDA filing UUID |
+| `company_id` | INT | FK to dim_company |
+| `client_name` | STRING | Company name |
+| `filing_year` | INT | Year |
+| `filing_period` | STRING | Quarter |
+| `expenses` | DECIMAL | Lobbying spend |
+
+**Row count:** 970 filings
+
+#### `FCT_LOBBYING_IMPACT`
+LLM-assessed concern scores with company dimension join.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `score_id` | STRING | Unique identifier |
+| `company_id` | INT | FK to dim_company |
+| `company_name` | STRING | Company name |
+| `concern_score` | INT | 0-100 concern level |
+| `concern_level` | STRING | Bucketed level (aligned/minor/moderate/significant/critical) |
+| `lobbying_agenda_summary` | STRING | Summary |
+| `top_concerning_policy_asks` | VARIANT (JSON) | JSON array of concerns |
+| `public_interest_concerns` | VARIANT (JSON) | JSON array |
+| `regulatory_capture_signals` | VARIANT (JSON) | JSON array |
+
+**Row count:** 23 companies
+
+#### `FCT_COMPANY_ANALYSIS`
+Comprehensive company analysis combining ALL LLM scores.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `company_id` | INT | FK to dim_company |
+| `company_name` | STRING | Company name |
+| `company_type` | STRING | Company type |
+| `position_count` | INT | Number of policy positions |
+| `unique_policy_asks` | INT | Distinct policy asks |
+| `unique_arguments` | INT | Distinct arguments used |
+| `concern_score` | INT | Lobbying impact score (0-100) |
+| `discrepancy_score` | INT | Say-vs-do score (0-100) |
+| `china_rhetoric_intensity` | INT | China rhetoric score (0-100) |
+| `last_assessed_at` | TIMESTAMP | Most recent assessment |
+
+**Row count:** 30 companies with positions
+
+#### `FCT_BILL_COALITIONS`
+Bill-level coalition analysis with computed flags.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `bill_id` | STRING | Canonical bill ID |
+| `bill_name` | STRING | Human-readable name |
+| `public_positions` | INT | Count of public positions |
+| `supporting_count` | INT | Companies supporting |
+| `opposing_count` | INT | Companies opposing |
+| `lobbying_filing_count` | INT | LDA filings on this bill |
+| `quiet_lobbying_count` | INT | Companies lobbying without public position |
+| `is_contested` | BOOLEAN | Has both supporters and opponents |
+| `is_pure_quiet_lobbying` | BOOLEAN | Lobbying but no public positions |
+| `quiet_lobbying` | VARIANT (JSON) | Array of quiet lobbyist names |
+
+**Row count:** 21 bills
 
 ---
 

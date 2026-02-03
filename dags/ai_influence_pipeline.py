@@ -2,11 +2,12 @@
 AI Influence Tracker - Main Pipeline DAG
 
 This DAG orchestrates the full data pipeline:
-1. Extract PDF submissions → Iceberg
-2. Extract LDA lobbying data → Iceberg
+1. Extract PDF submissions → Iceberg (staging)
+2. Extract LDA lobbying data → Iceberg (staging)
 3. Run LLM position extraction
-4. Assess lobbying impact
-5. Sync to Snowflake + run dbt
+4. Run LLM analysis scripts (impact, discrepancy, china rhetoric, comparisons)
+5. Run rule-based analysis (bill coalition mapping)
+6. Sync to Snowflake + run dbt
 
 For initial load, trigger with {"mode": "full"}
 For incremental updates, run on schedule (daily)
@@ -43,7 +44,7 @@ with DAG(
 ) as dag:
 
     # =========================================================================
-    # EXTRACT LAYER
+    # EXTRACT LAYER (to Iceberg staging)
     # =========================================================================
 
     with TaskGroup('extract') as extract_group:
@@ -72,14 +73,15 @@ with DAG(
         [extract_pdfs, extract_lda]
 
     # =========================================================================
-    # LLM EXTRACTION LAYER (Agentic)
+    # LLM EXTRACTION LAYER (Agentic - Position Extraction)
     # =========================================================================
 
-    with TaskGroup('llm_extraction') as llm_group:
+    with TaskGroup('llm_extraction') as llm_extraction_group:
 
         extract_positions = BashOperator(
             task_id='extract_positions',
             bash_command=f'python {AIRFLOW_HOME}/include/scripts/agentic/extract_positions.py',
+            execution_timeout=timedelta(hours=2),
             doc="""
             Use Claude API to extract policy positions from document chunks.
             Writes to Iceberg: ai_positions
@@ -87,18 +89,75 @@ with DAG(
             """,
         )
 
+    # =========================================================================
+    # LLM ANALYSIS LAYER (Agentic - All Analysis Scripts)
+    # =========================================================================
+
+    with TaskGroup('llm_analysis') as llm_analysis_group:
+
         assess_impact = BashOperator(
             task_id='assess_lobbying_impact',
             bash_command=f'python {AIRFLOW_HOME}/include/scripts/agentic/assess_lobbying_impact.py',
+            execution_timeout=timedelta(hours=1),
             doc="""
             Use Claude API to assess public interest implications of lobbying.
-            Joins positions + LDA data, produces concern scores.
+            Joins positions + LDA data, produces concern scores (0-100).
             Writes to Iceberg: lobbying_impact_scores
             """,
         )
 
-        # Positions must be extracted before impact assessment
-        extract_positions >> assess_impact
+        detect_discrepancies = BashOperator(
+            task_id='detect_discrepancies',
+            bash_command=f'python {AIRFLOW_HOME}/include/scripts/agentic/detect_discrepancies.py',
+            execution_timeout=timedelta(hours=1),
+            doc="""
+            Use Claude API to detect say-vs-do contradictions.
+            Compares public positions to lobbying activity.
+            Writes to Iceberg: discrepancy_scores
+            """,
+        )
+
+        analyze_china_rhetoric = BashOperator(
+            task_id='analyze_china_rhetoric',
+            bash_command=f'python {AIRFLOW_HOME}/include/scripts/agentic/analyze_china_rhetoric.py',
+            execution_timeout=timedelta(hours=1),
+            doc="""
+            Use Claude API to analyze China competition rhetoric.
+            Evaluates rhetoric intensity and patterns.
+            Writes to Iceberg: china_rhetoric_analysis
+            """,
+        )
+
+        compare_positions = BashOperator(
+            task_id='compare_positions',
+            bash_command=f'python {AIRFLOW_HOME}/include/scripts/agentic/compare_positions.py',
+            execution_timeout=timedelta(hours=1),
+            doc="""
+            Use Claude API for cross-company position comparison.
+            Identifies consensus, contested positions, coalition patterns.
+            Writes to Iceberg: position_comparisons
+            """,
+        )
+
+        # All analysis scripts can run in parallel
+        [assess_impact, detect_discrepancies, analyze_china_rhetoric, compare_positions]
+
+    # =========================================================================
+    # RULE-BASED ANALYSIS (No LLM)
+    # =========================================================================
+
+    with TaskGroup('rule_analysis') as rule_analysis_group:
+
+        map_regulatory_targets = BashOperator(
+            task_id='map_regulatory_targets',
+            bash_command=f'python {AIRFLOW_HOME}/include/scripts/agentic/map_regulatory_targets.py',
+            doc="""
+            Rule-based bill-level coalition analysis.
+            Maps positions to lobbying activity by bill.
+            Detects "quiet lobbying" patterns.
+            Writes to Iceberg: bill_position_analysis
+            """,
+        )
 
     # =========================================================================
     # LOAD TO SNOWFLAKE + dbt
@@ -137,5 +196,6 @@ with DAG(
     # PIPELINE FLOW
     # =========================================================================
 
-    # Full pipeline: Extract → LLM → Snowflake
-    extract_group >> llm_group >> snowflake_group
+    # Full pipeline:
+    # Extract → LLM Extraction → [LLM Analysis, Rule Analysis] → Snowflake
+    extract_group >> llm_extraction_group >> [llm_analysis_group, rule_analysis_group] >> snowflake_group

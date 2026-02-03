@@ -5,6 +5,7 @@ sources:
     database: DATAEXPERT_STUDENT
     schema: KOUVERK_AI_INFLUENCE
     tables:
+      # Core extraction tables
       - name: raw_ai_positions
         description: LLM-extracted policy positions from AI Action Plan submissions
       - name: raw_ai_submissions_metadata
@@ -15,5 +16,15 @@ sources:
         description: Lobbying activities by issue code
       - name: raw_lda_lobbyists
         description: Individual lobbyists on filings
+
+      # LLM analysis tables
       - name: raw_lobbying_impact_scores
-        description: LLM-assessed public interest concern scores
+        description: LLM-assessed public interest concern scores (0-100)
+      - name: raw_discrepancy_scores
+        description: LLM-assessed say-vs-do discrepancy scores (0-100)
+      - name: raw_china_rhetoric_analysis
+        description: LLM analysis of China competition rhetoric intensity
+      - name: raw_position_comparisons
+        description: Cross-company position comparison analysis
+      - name: raw_bill_position_analysis
+        description: Bill-level coalition analysis with quiet lobbying detection

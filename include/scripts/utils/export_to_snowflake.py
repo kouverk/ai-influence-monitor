@@ -59,6 +59,7 @@ def get_table_names() -> dict:
         "discrepancy_scores": f"{schema}.discrepancy_scores",
         "china_rhetoric_analysis": f"{schema}.china_rhetoric_analysis",
         "position_comparisons": f"{schema}.position_comparisons",
+        "bill_position_analysis": f"{schema}.bill_position_analysis",
     }
 
 def iceberg_to_snowflake(table_name: str, iceberg_table_id: str, create_sql: str, dry_run: bool = False):
@@ -339,6 +340,29 @@ def main():
             ARGUMENT_PATTERNS VARCHAR,
             KEY_FINDINGS VARCHAR,
             MODEL VARCHAR,
+            PROCESSED_AT VARCHAR
+        )
+        """,
+        dry_run
+    )
+
+    # 10. Bill Position Analysis (21 rows)
+    total_rows += iceberg_to_snowflake(
+        "RAW_BILL_POSITION_ANALYSIS",
+        tables["bill_position_analysis"],
+        """
+        CREATE TABLE IF NOT EXISTS RAW_BILL_POSITION_ANALYSIS (
+            BILL_ID VARCHAR,
+            BILL_NAME VARCHAR,
+            COMPANIES_SUPPORTING VARCHAR,
+            COMPANIES_OPPOSING VARCHAR,
+            POSITION_COUNT INTEGER,
+            LOBBYING_FILING_COUNT INTEGER,
+            LOBBYING_ACTIVITY_COUNT INTEGER,
+            LOBBYING_COMPANIES VARCHAR,
+            LOBBYING_SPEND_ESTIMATE FLOAT,
+            QUIET_LOBBYING VARCHAR,
+            ALL_TALK VARCHAR,
             PROCESSED_AT VARCHAR
         )
         """,

@@ -1,7 +1,7 @@
 """
 Data loading layer for the AI Influence Tracker dashboard.
 
-Loads data from Iceberg tables via PyIceberg and returns as pandas DataFrames.
+Loads data from Snowflake tables (via dbt staging/marts) and returns as pandas DataFrames.
 """
 
 import os
@@ -19,36 +19,29 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "include"))
 from config import get_company_name_mapping, PRIORITY_COMPANIES
 
 
-def get_catalog():
-    """Initialize PyIceberg catalog."""
-    from pyiceberg.catalog import load_catalog
+def get_snowflake_connection():
+    """Initialize Snowflake connection."""
+    import snowflake.connector
 
-    return load_catalog(
-        "glue",
-        **{
-            "type": "glue",
-            "region_name": os.getenv("AWS_DEFAULT_REGION", "us-west-2"),
-            "s3.access-key-id": os.getenv("AWS_ACCESS_KEY_ID"),
-            "s3.secret-access-key": os.getenv("AWS_SECRET_ACCESS_KEY"),
-            "s3.region": os.getenv("AWS_DEFAULT_REGION", "us-west-2"),
-        }
+    return snowflake.connector.connect(
+        account=os.getenv("SNOWFLAKE_ACCOUNT"),
+        user=os.getenv("SNOWFLAKE_USER"),
+        password=os.getenv("SNOWFLAKE_PASSWORD"),
+        warehouse=os.getenv("SNOWFLAKE_WAREHOUSE"),
+        database=os.getenv("SNOWFLAKE_DATABASE"),
+        schema=os.getenv("SNOWFLAKE_SCHEMA"),
     )
 
 
-def get_schema() -> str:
-    """Get schema name from environment."""
-    return os.getenv("SCHEMA", "kouverk")
-
-
 def load_table_as_df(table_name: str) -> pd.DataFrame:
-    """Load an Iceberg table as a pandas DataFrame."""
+    """Load a Snowflake table as a pandas DataFrame."""
     try:
-        catalog = get_catalog()
-        schema = get_schema()
-        full_name = f"{schema}.{table_name}"
-
-        table = catalog.load_table(full_name)
-        df = table.scan().to_pandas()
+        conn = get_snowflake_connection()
+        query = f"SELECT * FROM {table_name}"
+        df = pd.read_sql(query, conn)
+        # Lowercase column names for consistency with existing code
+        df.columns = [col.lower() for col in df.columns]
+        conn.close()
         return df
     except Exception as e:
         print(f"Warning: Could not load table {table_name}: {e}")
@@ -56,43 +49,53 @@ def load_table_as_df(table_name: str) -> pd.DataFrame:
 
 
 def load_positions() -> pd.DataFrame:
-    """Load policy positions from ai_positions table."""
-    return load_table_as_df("ai_positions")
+    """Load policy positions from stg_ai_positions."""
+    return load_table_as_df("STG_AI_POSITIONS")
 
 
 def load_impact_scores() -> pd.DataFrame:
-    """Load lobbying impact scores."""
-    return load_table_as_df("lobbying_impact_scores")
+    """Load lobbying impact scores from stg_lobbying_impact_scores."""
+    return load_table_as_df("STG_LOBBYING_IMPACT_SCORES")
 
 
 def load_discrepancy_scores() -> pd.DataFrame:
-    """Load say-vs-do discrepancy scores."""
-    return load_table_as_df("discrepancy_scores")
+    """Load say-vs-do discrepancy scores from stg_discrepancy_scores."""
+    return load_table_as_df("STG_DISCREPANCY_SCORES")
 
 
 def load_china_rhetoric() -> pd.DataFrame:
-    """Load China rhetoric analysis."""
-    return load_table_as_df("china_rhetoric_analysis")
+    """Load China rhetoric analysis from stg_china_rhetoric."""
+    return load_table_as_df("STG_CHINA_RHETORIC")
 
 
 def load_filings() -> pd.DataFrame:
-    """Load LDA filings."""
-    return load_table_as_df("lda_filings")
+    """Load LDA filings from stg_lda_filings."""
+    return load_table_as_df("STG_LDA_FILINGS")
 
 
 def load_activities() -> pd.DataFrame:
-    """Load LDA activities."""
-    return load_table_as_df("lda_activities")
+    """Load LDA activities from stg_lda_activities."""
+    return load_table_as_df("STG_LDA_ACTIVITIES")
 
 
 def load_position_comparisons() -> pd.DataFrame:
-    """Load cross-company position comparisons."""
-    return load_table_as_df("position_comparisons")
+    """Load cross-company position comparisons from stg_position_comparisons."""
+    return load_table_as_df("STG_POSITION_COMPARISONS")
 
 
 def load_bill_analysis() -> pd.DataFrame:
-    """Load bill-level coalition analysis."""
-    return load_table_as_df("bill_position_analysis")
+    """Load bill-level coalition analysis from stg_bill_position_analysis."""
+    return load_table_as_df("STG_BILL_POSITION_ANALYSIS")
+
+
+def load_company_analysis() -> pd.DataFrame:
+    """Load comprehensive company analysis from fct_company_analysis mart."""
+    return load_table_as_df("FCT_COMPANY_ANALYSIS")
+
+
+def load_bill_coalitions() -> pd.DataFrame:
+    """Load bill coalition analysis from fct_bill_coalitions mart."""
+    return load_table_as_df("FCT_BILL_COALITIONS")
 
 
 def get_lda_name(submitter_name: str) -> str | None:
@@ -188,7 +191,7 @@ def load_all_data() -> dict:
 
 # For testing
 if __name__ == "__main__":
-    print("Testing data loader...")
+    print("Testing data loader (Snowflake)...")
 
     data = load_all_data()
 

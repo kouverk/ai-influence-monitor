@@ -51,13 +51,14 @@ A document intelligence pipeline that:
 
 **4. Snowflake Integration** ✅
 - Script: `include/scripts/utils/export_to_snowflake.py`
-- Exports Iceberg tables to Snowflake RAW tables
+- Exports ALL 10 Iceberg tables to Snowflake RAW tables
 - Database: `DATAEXPERT_STUDENT.KOUVERK_AI_INFLUENCE`
 
 **5. dbt Models** ✅
 - Project: `dbt/ai_influence/`
-- 6 staging views + 4 mart tables
-- 23 tests passing
+- 10 staging views (all source tables)
+- 6 mart tables including `fct_company_analysis` and `fct_bill_coalitions`
+- Tests on all primary keys
 
 **6. Airflow DAGs** ✅
 - 6 DAGs in `dags/` directory
@@ -135,7 +136,7 @@ A document intelligence pipeline that:
 **9. Streamlit Dashboard** ✅
 - App: `dashboard/app.py`
 - 6 sections: Executive Summary, Company Deep Dive, Cross-Company Comparison, Bill-Level Analysis, Position Explorer, Methodology
-- Reads directly from Iceberg tables
+- Reads from Snowflake dbt staging views (not Iceberg)
 
 ### What's NOT Done
 - Deploy dashboard (currently local only)
@@ -254,6 +255,16 @@ Score depth of policy engagement:
 
 ## Session Log
 
+### Session 9: February 2, 2026
+- **Major architecture refactor: Snowflake as single source of truth**
+- Updated `export_to_snowflake.py` to export all 10 tables (added `bill_position_analysis`)
+- Created 4 new dbt staging models: `stg_discrepancy_scores`, `stg_china_rhetoric`, `stg_position_comparisons`, `stg_bill_position_analysis`
+- Fixed `stg_lobbying_impact_scores` schema to match v2 column names
+- Created 2 new dbt marts: `fct_company_analysis` (combines all scores), `fct_bill_coalitions`
+- Updated `dashboard/data_loader.py` to read from Snowflake instead of Iceberg
+- Updated Airflow pipeline DAG to include ALL 6 agentic scripts with proper dependencies
+- Pipeline flow: Extract → LLM Extraction → [LLM Analysis + Rule Analysis] → Snowflake → dbt
+
 ### Session 8: February 2, 2026
 - Built and ran `map_regulatory_targets.py` (Regulatory Target Mapper)
 - Created `bill_position_analysis` table with 21 bills analyzed
@@ -317,4 +328,4 @@ Score depth of policy engagement:
 
 ---
 
-*Last updated: February 2, 2026*
+*Last updated: February 2, 2026 (Session 9)*

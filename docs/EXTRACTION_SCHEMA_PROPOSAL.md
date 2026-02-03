@@ -1,5 +1,11 @@
 # Extraction Schema Proposal
 
+> **Status: ✅ IMPLEMENTED** (January 2025)
+>
+> This proposal has been fully implemented. The enhanced schema is now in production with 878 positions extracted. See [DATA_DICTIONARY.md](DATA_DICTIONARY.md) for current table schemas.
+
+---
+
 ## The Problem
 
 Current extraction gives us:
@@ -221,7 +227,7 @@ GROUP BY company_type, policy_ask
 
 ## Implementation Options
 
-### Option A: Re-extract all positions
+### Option A: Re-extract all positions ✅ CHOSEN
 - Delete existing `ai_positions` table
 - Run new extraction with enhanced prompt
 - Cost: ~$5-10 in API calls for 112 chunks
@@ -242,28 +248,32 @@ GROUP BY company_type, policy_ask
 
 **Recommendation:** Option A (re-extract) since we only have 17 documents and the cost is low.
 
+**Result:** Option A implemented. 878 positions extracted with enhanced schema.
+
 ---
 
 ## Row Count Impact
 
-Current: 607 positions
-With enhanced schema: Still ~607 rows (same granularity)
+~~Current: 607 positions~~
+**Actual result: 878 positions** (30 priority companies)
 
-BUT: Each row is now more analytically useful, and the JSON unnesting in dbt adds rows:
-- `policy_asks` base: 607 rows
-- By argument type: potentially 2x if we capture primary + secondary
+Each row is now analytically useful with structured fields enabling queries like:
+- "Who uses China competition arguments?" → 55 positions
+- "Who wants liability shields?" → Direct query on `policy_ask`
+- "What arguments are used against SB 1047?" → Filter by `target`
 
 ---
 
 ## Next Steps
 
-1. [ ] Review this proposal
-2. [ ] Finalize the taxonomy (add/remove categories)
-3. [ ] Update `extract_positions.py` with new prompt
-4. [ ] Re-run extraction on 112 chunks
-5. [ ] Update `assess_lobbying_impact.py` to use new schema
-6. [ ] Build dbt models for analysis
+1. [x] Review this proposal
+2. [x] Finalize the taxonomy (add/remove categories)
+3. [x] Update `extract_positions.py` with new prompt
+4. [x] Re-run extraction on 112 chunks → **878 positions extracted**
+5. [x] Update `assess_lobbying_impact.py` to use new schema
+6. [x] Build dbt models for analysis → **10 staging views + 6 mart tables**
 
 ---
 
 *Created: January 14, 2025*
+*Implemented: January 17, 2025*

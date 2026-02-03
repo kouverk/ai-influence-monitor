@@ -36,9 +36,11 @@ final as (
         s.lobbying_agenda_summary,
 
         -- Detailed analysis (JSON arrays)
+        s.top_concerning_policy_asks,
         s.public_interest_concerns,
         s.regulatory_capture_signals,
-        s.safety_vs_profit_tensions,
+        s.china_rhetoric_assessment,
+        s.accountability_stance,
         s.positive_aspects,
         s.key_flags,
 

@@ -2,7 +2,7 @@
 
 **What AI Companies Say vs. What They Lobby For**
 
-A document intelligence pipeline that processes 10,000+ government policy submissions, extracts structured positions using LLMs, and joins them to federal lobbying disclosures to surface discrepancies between public statements and lobbying activity.
+A document intelligence pipeline that analyzes 10,000+ government policy submissions, extracts structured positions using LLMs, and compares them to federal lobbying disclosures to surface discrepancies between public statements and lobbying activity.
 
 ---
 
@@ -14,48 +14,80 @@ OpenAI's CEO calls for AI regulation in congressional testimony. Then OpenAI lob
 
 ---
 
-## What It Does
+## Key Findings
 
-1. **Ingests government documents** - AI Action Plan submissions (10,068 docs), Federal Register filings, Regulations.gov comments
-2. **Extracts policy positions** - LLM reads each document and extracts structured positions (topic, stance, supporting quote)
-3. **Pulls lobbying data** - Senate LDA filings, OpenSecrets spend data
-4. **Matches entities** - Resolves "OpenAI" vs "OpenAI, Inc." vs "OpenAI LP" across sources
-5. **Calculates discrepancy scores** - Compares stated positions to lobbying activity
-6. **Monitors continuously** - Daily/weekly jobs catch new filings as they drop
+| Finding | Evidence |
+|---------|----------|
+| **Anthropic is most consistent** | Lowest discrepancy (25/100), lowest concern (45/100), minimal China rhetoric (15/100) |
+| **Google/Amazon have biggest say-vs-do gap** | Both score 72/100 discrepancy - talk AI policy, lobby on antitrust/procurement |
+| **OpenAI most aggressive on China framing** | 85/100 rhetoric intensity, uses China in 29% of positions |
+| **Trade groups do the "dirty work"** | More aggressive on deregulation than their member companies |
+| **Section 230 is the silent elephant** | 115 lobbying filings, ZERO public positions - everyone lobbies, no one speaks publicly |
 
 ---
 
-## Data Sources
+## Data Scale
 
-| Source | Type | Schedule | Content |
-|--------|------|----------|---------|
-| [AI Action Plan Submissions](https://www.nitrd.gov/coordination-areas/ai/90-fr-9088-responses/) | Bulk download | One-time | 10,068 policy submissions to Trump admin |
-| [Federal Register API](https://www.federalregister.gov/api/v1/) | REST API | Daily | New AI-related RFIs, rules, notices |
-| [Regulations.gov API](https://api.regulations.gov/v4/) | REST API | Daily | Public comments on AI regulatory dockets |
-| [Senate LDA API](https://lda.senate.gov/api/v1/) | REST API | Weekly | Lobbying disclosure filings |
-| [OpenSecrets](https://www.opensecrets.org/open-data/bulk-data) | Bulk CSV | Monthly | Aggregated lobbying spend |
+| Dataset | Count | Description |
+|---------|-------|-------------|
+| AI Action Plan submissions | 10,068 PDFs | Trump admin RFI responses (Feb 2025) |
+| Priority companies processed | 30 | LLM extraction complete |
+| Policy positions extracted | 878 | Structured with taxonomy |
+| LDA lobbying filings | 970 | Senate disclosures (2023+) |
+| LDA activities | 3,051 | Specific lobbying issues |
+| Bills/regulations analyzed | 21 | Coalition pattern analysis |
 
 ---
 
 ## Architecture
 
 ```
-Extract (Airflow)          Transform (dbt + LLM)           Load
-─────────────────          ────────────────────           ─────
-                           
-Federal Register ─┐        ┌─ stg_submissions             
-Regulations.gov ──┼──────▶ ├─ stg_federal_register ─┐     
-AI Submissions ───┤        ├─ stg_lda_filings       │     
-Senate LDA ───────┤        └─ stg_opensecrets       │     
-OpenSecrets ──────┘                                 │     
-                                                    ▼     
-                           ┌─ int_llm_positions ────┐     
-                           └─ int_entity_resolution─┤     
-                                                    ▼     
-                           ┌─ fct_policy_positions  │     
-                           ├─ fct_lobbying_activity ┼───▶ Snowflake
-                           ├─ fct_discrepancy_scores│     
-                           └─ dim_company, dim_topic┘     
+┌─────────────────────────────────────────────────────────────────────┐
+│                         EXTRACT LAYER (to Iceberg)                   │
+├─────────────────────────────────────────────────────────────────────┤
+│  - extract_pdf_submissions.py  → ai_submissions_metadata/text/chunks │
+│  - extract_lda_filings.py      → lda_filings/activities/lobbyists   │
+└─────────────────────────────────────────────────────────────────────┘
+                               │
+                               ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                    LLM ANALYSIS LAYER (6 Agentic Scripts)            │
+├─────────────────────────────────────────────────────────────────────┤
+│  - extract_positions.py         → ai_positions (878 rows)           │
+│  - assess_lobbying_impact.py    → lobbying_impact_scores (23 rows)  │
+│  - detect_discrepancies.py      → discrepancy_scores (23 rows)      │
+│  - analyze_china_rhetoric.py    → china_rhetoric_analysis (14 rows) │
+│  - compare_positions.py         → position_comparisons (1 row)      │
+│  - map_regulatory_targets.py    → bill_position_analysis (21 rows)  │
+└─────────────────────────────────────────────────────────────────────┘
+                               │
+                               ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                   LOAD LAYER (Iceberg → Snowflake)                   │
+├─────────────────────────────────────────────────────────────────────┤
+│  - export_to_snowflake.py → 10 RAW_* tables (~26,500 rows total)    │
+└─────────────────────────────────────────────────────────────────────┘
+                               │
+                               ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                      TRANSFORM LAYER (dbt)                           │
+├─────────────────────────────────────────────────────────────────────┤
+│  Staging: 10 views    │  Marts: 6 tables                             │
+│  - stg_ai_positions   │  - dim_company (84 companies)                │
+│  - stg_lda_filings    │  - fct_policy_positions (878 positions)      │
+│  - stg_lda_activities │  - fct_lobbying_impact (23 scores)           │
+│  - etc.               │  - fct_company_analysis (30 companies)       │
+│                       │  - fct_bill_coalitions (21 bills)            │
+└─────────────────────────────────────────────────────────────────────┘
+                               │
+                               ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                      VISUALIZATION LAYER                             │
+├─────────────────────────────────────────────────────────────────────┤
+│  Streamlit Dashboard (6 sections):                                   │
+│  - Executive Summary, Company Deep Dive, Cross-Company Comparison    │
+│  - Bill-Level Analysis, Position Explorer, Methodology               │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -63,50 +95,75 @@ OpenSecrets ──────┘                                 │
 ## Key Features
 
 ### LLM-Powered Position Extraction
-Claude reads policy documents and extracts structured JSON:
+
+Claude reads policy documents and extracts structured JSON with enhanced taxonomy:
+
 ```json
 {
-  "topic": "state_regulation",
-  "stance": "strong_oppose",
-  "supporting_quote": "This patchwork of regulations risks bogging down innovation",
-  "confidence": 0.95
+  "policy_ask": "federal_preemption",
+  "ask_category": "regulatory_structure",
+  "stance": "support",
+  "target": "California SB 1047",
+  "primary_argument": "patchwork_problem",
+  "secondary_argument": "innovation_harm",
+  "supporting_quote": "A patchwork of state regulations risks fragmenting the market.",
+  "confidence": 0.92
 }
 ```
 
-### Discrepancy Scoring
-Quantifies the gap between what companies say publicly and what they lobby for:
-- **0-20:** Consistent - lobbying matches stated positions
-- **21-40:** Minor gaps
-- **41-60:** Mixed signals
-- **61-80:** Significant contradictions
-- **81-100:** Lobbying directly opposes public statements
+### Three Analysis Scores
 
-### Continuous Monitoring
-Not a one-time analysis. Airflow DAGs run daily/weekly to catch new filings as the policy landscape evolves.
+| Score | Range | What It Measures |
+|-------|-------|------------------|
+| **Concern Score** | 0-100 | Public interest implications (0=aligned, 100=concerning) |
+| **Discrepancy Score** | 0-100 | Say-vs-do gap (0=consistent, 100=hypocrite) |
+| **China Rhetoric Intensity** | 0-100 | Reliance on China framing (0=minimal, 100=heavy) |
+
+### "Quiet Lobbying" Detection
+
+Identifies companies that heavily lobby on legislation without taking public positions - revealing priorities they don't want publicly associated with their brand.
+
+**Example:** Section 230 has 115 lobbying filings but ZERO public positions from any company.
 
 ---
 
 ## Tech Stack
 
-- **Orchestration:** Airflow (Astronomer)
-- **Transformation:** dbt
-- **Warehouse:** Snowflake
-- **LLM:** Claude API (Anthropic)
-- **PDF Processing:** Reducto.ai / PyMuPDF
-- **Language:** Python
+| Component | Technology |
+|-----------|------------|
+| **Orchestration** | Airflow (Astronomer) |
+| **Data Lake** | Apache Iceberg + AWS S3 |
+| **Warehouse** | Snowflake |
+| **Transformation** | dbt |
+| **LLM** | Claude API (Anthropic) |
+| **PDF Processing** | PyMuPDF |
+| **Dashboard** | Streamlit |
+| **Language** | Python |
 
 ---
 
 ## Project Structure
 
 ```
-ai-influence-tracker/
-├── airflow/dags/           # Airflow DAGs for each data source
-├── dbt/models/             # Staging, intermediate, mart models
-├── scripts/                # One-time scripts (download, extraction)
-├── notebooks/              # Exploration and testing
-├── CLAUDE.md               # Context file for Claude Code
-└── README.md               # This file
+ai-influence-monitor/
+├── CLAUDE.md                    # Project context and status
+├── docs/
+│   ├── DATA_DICTIONARY.md       # Tables, columns, sources
+│   ├── ARCHITECTURE.md          # System design, prompts, APIs
+│   └── INSIGHTS.md              # Findings and observations
+├── include/
+│   ├── config.py                # Company lists, LDA filters
+│   └── scripts/
+│       ├── extraction/          # PDF and LDA data loading
+│       ├── agentic/             # 6 LLM-powered analysis scripts
+│       └── utils/               # Helpers (progress, export)
+├── dashboard/                   # Streamlit dashboard
+│   ├── app.py
+│   └── data_loader.py
+├── dags/                        # 6 Airflow DAGs
+├── dbt/ai_influence/            # dbt project (10 staging + 6 marts)
+├── data/                        # Downloaded PDFs (gitignored)
+└── .env                         # Config (AWS, Snowflake, Anthropic)
 ```
 
 ---
@@ -115,67 +172,88 @@ ai-influence-tracker/
 
 ```bash
 # Clone and setup
-git clone https://github.com/[you]/ai-influence-tracker
-cd ai-influence-tracker
+git clone https://github.com/[you]/ai-influence-monitor
+cd ai-influence-monitor
 python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 
-# Download AI submissions (one-time, 600MB)
-python scripts/download_ai_submissions.py
-
 # Set up environment variables
 cp .env.example .env
-# Add your API keys: CLAUDE_API_KEY, SENATE_LDA_API_KEY, etc.
+# Add: AWS credentials, SNOWFLAKE_*, ANTHROPIC_API_KEY
 
-# Run Airflow locally or deploy to Astronomer
-astro dev start
+# Download AI submissions (one-time, 600MB)
+python include/scripts/extraction/extract_pdf_submissions.py
+
+# Extract LDA lobbying data
+python include/scripts/extraction/extract_lda_filings.py
+
+# Run LLM position extraction
+python include/scripts/agentic/extract_positions.py
+
+# Run analysis scripts
+python include/scripts/agentic/assess_lobbying_impact.py --fresh
+python include/scripts/agentic/detect_discrepancies.py --fresh
+python include/scripts/agentic/analyze_china_rhetoric.py --fresh
+
+# Export to Snowflake and run dbt
+python include/scripts/utils/export_to_snowflake.py
+cd dbt/ai_influence && dbt run && dbt test
+
+# Launch dashboard
+streamlit run dashboard/app.py
 ```
 
 ---
 
-## Why This Matters
+## Data Sources
 
-The AI policy debate is happening right now. Companies are simultaneously:
-- Calling for "responsible AI development" in public
-- Lobbying to kill safety regulations behind closed doors
-- Framing everything as "beating China" to avoid oversight
-
-This pipeline creates accountability by making the gaps visible and quantifiable.
+| Source | Type | Content |
+|--------|------|---------|
+| [AI Action Plan Submissions](https://www.nitrd.gov/coordination-areas/ai/90-fr-9088-responses/) | Bulk PDF | 10,068 policy submissions to Trump admin |
+| [Senate LDA API](https://lda.senate.gov/api/v1/) | REST API | Lobbying disclosure filings |
 
 ---
 
 ## The China Rhetoric Analysis
 
-A key finding: **94 positions** in our dataset invoke "China competition" as a policy argument.
+A key finding: Companies use "China competition" rhetoric strategically in policy arguments.
 
-**The question isn't "Is China a threat?"** - that's a massive geopolitical debate we can't resolve. Instead, we analyze **how companies use China framing** in their policy arguments:
+| Company | Rhetoric Intensity | Assessment |
+|---------|-------------------|------------|
+| OpenAI | 85/100 | Most aggressive - uses China in 29% of positions |
+| Meta | 75/100 | Heavy reliance |
+| Anthropic | 15/100 | Minimal use |
+| Google | 2/100 | Barely uses it |
 
-| Claim Type | Example | Verifiable? |
-|------------|---------|-------------|
-| Capability claims | "China will overtake us" | Partially - can check publications/patents |
-| Regulatory comparison | "China doesn't regulate AI" | Yes - can research Chinese AI laws |
-| Security framing | "National security requires X" | No - unfalsifiable |
-| Vague competitiveness | "We need to compete" | No - rhetorical |
-
-**The insight:** When companies invoke China to oppose specific regulations, we can flag whether their claims are verifiable or just rhetorical cover. This is document intelligence, not geopolitics.
+**The insight:** When companies invoke China to oppose specific regulations, we can flag whether their claims are substantive or rhetorical cover. High intensity + low substantiation = potential red flag.
 
 ---
 
-## Broader Application
+## Documentation
 
-The same architecture applies to:
-- **Legal tech** - Contract analysis, due diligence
-- **RegTech** - Regulatory compliance monitoring
-- **GovTech** - Government document processing
-- **Investigative journalism** - Following the money
-
-The document intelligence market is $10B+ and growing 30% annually.
+| File | Purpose |
+|------|---------|
+| [CLAUDE.md](CLAUDE.md) | Project overview, current state, session log |
+| [docs/DATA_DICTIONARY.md](docs/DATA_DICTIONARY.md) | Tables, columns, data sources |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System design, DAG structure, prompts |
+| [docs/INSIGHTS.md](docs/INSIGHTS.md) | Findings and observations |
 
 ---
 
 ## Status
 
-🚧 **In Development** - Capstone project for DataExpert.io analytics engineering bootcamp
+**Complete** - DataExpert.io analytics engineering capstone project
+
+- [x] PDF extraction pipeline
+- [x] LLM position extraction (878 positions)
+- [x] LDA lobbying data integration
+- [x] 6 agentic analysis scripts
+- [x] Snowflake integration
+- [x] dbt models (10 staging + 6 marts)
+- [x] Airflow DAGs (6 DAGs)
+- [x] Streamlit dashboard
+- [ ] Deploy dashboard publicly
+- [ ] Process remaining 9,900+ documents
 
 ---
 
