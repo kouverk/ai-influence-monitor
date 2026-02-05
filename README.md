@@ -43,15 +43,15 @@ OpenAI's CEO calls for AI regulation in congressional testimony. Then OpenAI lob
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                         EXTRACT LAYER (to Iceberg)                   │
+│                         EXTRACT LAYER (to Iceberg)                  │
 ├─────────────────────────────────────────────────────────────────────┤
-│  - extract_pdf_submissions.py  → ai_submissions_metadata/text/chunks │
+│  - extract_pdf_submissions.py  → ai_submissions_metadata/text/chunks│
 │  - extract_lda_filings.py      → lda_filings/activities/lobbyists   │
 └─────────────────────────────────────────────────────────────────────┘
                                │
                                ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│                    LLM ANALYSIS LAYER (6 Agentic Scripts)            │
+│                    LLM ANALYSIS LAYER (6 Agentic Scripts)           │
 ├─────────────────────────────────────────────────────────────────────┤
 │  - extract_positions.py         → ai_positions (878 rows)           │
 │  - assess_lobbying_impact.py    → lobbying_impact_scores (23 rows)  │
@@ -63,30 +63,30 @@ OpenAI's CEO calls for AI regulation in congressional testimony. Then OpenAI lob
                                │
                                ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│                   LOAD LAYER (Iceberg → Snowflake)                   │
+│                   LOAD LAYER (Iceberg → Snowflake)                  │
 ├─────────────────────────────────────────────────────────────────────┤
 │  - export_to_snowflake.py → 10 RAW_* tables (~26,500 rows total)    │
 └─────────────────────────────────────────────────────────────────────┘
                                │
                                ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│                      TRANSFORM LAYER (dbt)                           │
+│                      TRANSFORM LAYER (dbt)                          │
 ├─────────────────────────────────────────────────────────────────────┤
-│  Staging: 10 views    │  Marts: 6 tables                             │
-│  - stg_ai_positions   │  - dim_company (84 companies)                │
-│  - stg_lda_filings    │  - fct_policy_positions (878 positions)      │
-│  - stg_lda_activities │  - fct_lobbying_impact (23 scores)           │
-│  - etc.               │  - fct_company_analysis (30 companies)       │
-│                       │  - fct_bill_coalitions (21 bills)            │
+│  Staging: 10 views    │  Marts: 6 tables                            │
+│  - stg_ai_positions   │  - dim_company (84 companies)               │
+│  - stg_lda_filings    │  - fct_policy_positions (878 positions)     │
+│  - stg_lda_activities │  - fct_lobbying_impact (23 scores)          │
+│  - etc.               │  - fct_company_analysis (30 companies)      │
+│                       │  - fct_bill_coalitions (21 bills)           │
 └─────────────────────────────────────────────────────────────────────┘
                                │
                                ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│                      VISUALIZATION LAYER                             │
+│                      VISUALIZATION LAYER                            │
 ├─────────────────────────────────────────────────────────────────────┤
-│  Streamlit Dashboard (6 sections):                                   │
-│  - Executive Summary, Company Deep Dive, Cross-Company Comparison    │
-│  - Bill-Level Analysis, Position Explorer, Methodology               │
+│  Streamlit Dashboard (6 sections):                                  │
+│  - Executive Summary, Company Deep Dive, Cross-Company Comparison   │
+│  - Bill-Level Analysis, Position Explorer, Methodology              │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
