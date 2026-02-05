@@ -72,6 +72,13 @@ select
     c.company_id,
     c.company_name,
     c.company_type,
+    -- Sort order: ai_lab first, then big_tech, then trade_group
+    case c.company_type
+        when 'ai_lab' then 1
+        when 'big_tech' then 2
+        when 'trade_group' then 3
+        else 4
+    end as company_type_sort,
     coalesce(p.position_count, 0) as position_count,
     coalesce(p.unique_policy_asks, 0) as unique_policy_asks,
     coalesce(p.unique_arguments, 0) as unique_arguments,

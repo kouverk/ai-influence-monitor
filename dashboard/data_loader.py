@@ -171,8 +171,12 @@ def load_bill_coalitions() -> pd.DataFrame:
     return load_table_as_df("FCT_BILL_COALITIONS")
 
 
-def get_lda_name(submitter_name: str) -> str | None:
-    """Get LDA client name for a submitter name."""
+def get_canonical_name(submitter_name: str) -> str:
+    """Get canonical company name for a submitter name.
+
+    Handles variations like 'Anthropic-AI' -> 'Anthropic'.
+    Returns original name if no match found.
+    """
     mapping = get_company_name_mapping()
 
     # Strip common suffixes from submitter name
@@ -187,23 +191,35 @@ def get_lda_name(submitter_name: str) -> str | None:
 
     # Direct match
     if clean_name in mapping:
-        return mapping[clean_name]["lda_name"]
+        return clean_name
 
     # Case-insensitive match
-    for name, info in mapping.items():
+    for name in mapping.keys():
         if name.lower() == clean_name.lower():
-            return info["lda_name"]
+            return name
 
     # Partial match - check if any config name is in the submitter name
-    for name, info in mapping.items():
+    for name in mapping.keys():
         if name.lower() in clean_name.lower():
-            return info["lda_name"]
+            return name
 
     # Check if any part of the name matches a config name
     for part in name_parts:
-        for name, info in mapping.items():
+        for name in mapping.keys():
             if name.lower() == part.lower():
-                return info["lda_name"]
+                return name
+
+    # No match - return original
+    return submitter_name
+
+
+def get_lda_name(submitter_name: str) -> str | None:
+    """Get LDA client name for a submitter name."""
+    mapping = get_company_name_mapping()
+    canonical = get_canonical_name(submitter_name)
+
+    if canonical in mapping:
+        return mapping[canonical]["lda_name"]
 
     return None
 

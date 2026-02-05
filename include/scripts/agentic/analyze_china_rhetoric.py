@@ -99,7 +99,7 @@ Other arguments used: {other_arguments}
 Analyze their China rhetoric and return JSON:
 
 {{
-  "rhetoric_intensity": <0-100 - how heavily they lean on China framing>,
+  "rhetoric_intensity": <0-100 - how heavily they lean on China framing. Use the FULL range with precision - scores like 23, 47, 68, 81 are valid. Avoid rounding to multiples of 5 or 25.>,
 
   "claim_categorization": [
     {{

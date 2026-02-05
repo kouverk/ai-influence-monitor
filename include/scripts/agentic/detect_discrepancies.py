@@ -165,7 +165,7 @@ Systematically compare WHAT THEY SAY vs WHAT THEY DO. Look for:
 Return JSON:
 
 {{
-  "discrepancy_score": <0-100, where 0=fully consistent, 100=complete hypocrite>,
+  "discrepancy_score": <0-100, where 0=fully consistent, 100=complete hypocrite. Use the FULL range with precision - scores like 23, 47, 68, 81 are valid. Avoid rounding to multiples of 5 or 25.>,
 
   "discrepancies": [
     {{

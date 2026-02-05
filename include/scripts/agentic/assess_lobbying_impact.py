@@ -126,7 +126,7 @@ Return JSON with these fields:
 {{
   "lobbying_agenda_summary": "<2-3 sentences: What is this company's overall lobbying agenda? What policy outcomes are they pushing for?>",
 
-  "concern_score": <0-100 integer - how concerning is this lobbying for public interest?>,
+  "concern_score": <0-100 integer - how concerning is this lobbying for public interest? Use the FULL range with precision - scores like 23, 47, 68, 81 are valid. Avoid rounding to multiples of 5 or 25.>,
 
   "top_concerning_policy_asks": [
     {{

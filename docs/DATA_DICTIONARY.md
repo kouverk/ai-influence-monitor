@@ -548,7 +548,29 @@ Bill-level coalition analysis with computed flags.
 
 ## Submitter Type Classification
 
-How `submitter_type` is assigned in extraction script:
+### Entity Type Definitions
+
+| Type | Definition |
+|------|------------|
+| `ai_lab` | **Pure-play AI companies** whose core business is developing AI models and systems. These companies have the most direct stake in AI regulation since it affects their primary product. |
+| `big_tech` | **Diversified technology giants** where AI is one of many business lines. These companies may have conflicting internal interests (e.g., Amazon's cloud AI vs. content businesses on copyright). |
+| `trade_group` | **Industry associations** that represent multiple member companies collectively. Trade groups are not companies themselves—they advocate on behalf of their members' shared interests. |
+| `anonymous` | Individual submissions without identifiable company affiliation. |
+| `other` | Submissions from entities that don't fit the above categories (universities, NGOs, individuals, etc.). |
+
+### Why This Distinction Matters
+
+**Trade groups deserve special attention** in lobbying analysis because:
+
+1. **Collective voice**: Organizations like the U.S. Chamber of Commerce, TechNet, and CCIA represent hundreds of member companies speaking with one voice
+2. **Deniable advocacy**: Trade groups often advocate more aggressive positions than individual member companies would state publicly, allowing members to benefit without direct attribution
+3. **Lowest common denominator**: Trade group positions typically represent what all members can agree on, which often skews toward deregulation
+
+**Example**: A tech company might publicly support "responsible AI regulation" while their trade group lobbies against specific accountability measures. This project's discrepancy analysis attempts to surface these gaps.
+
+### Detection Rules
+
+How `submitter_type` is assigned in the extraction script:
 
 | Type | Examples | Detection |
 |------|----------|-----------|

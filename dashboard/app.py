@@ -13,7 +13,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from data_loader import load_all_data
+from data_loader import load_all_data, get_canonical_name
 
 # Page config
 st.set_page_config(
@@ -165,7 +165,11 @@ def render_executive_summary(data: dict):
             leaderboard = leaderboard.merge(china_merge, on="company_name", how="left")
             leaderboard["rhetoric_intensity"] = leaderboard["rhetoric_intensity"].fillna(0)
 
-        leaderboard = leaderboard.sort_values("discrepancy_score")
+        # Add sort order: ai_lab first (1), big_tech second (2), trade_group third (3)
+        type_sort_order = {"ai_lab": 1, "big_tech": 2, "trade_group": 3}
+        leaderboard["_sort_order"] = leaderboard["company_type"].map(type_sort_order).fillna(4)
+        leaderboard = leaderboard.sort_values(["_sort_order", "discrepancy_score"])
+        leaderboard = leaderboard.drop(columns=["_sort_order"])
 
         # Display as styled table
         st.dataframe(
@@ -192,8 +196,22 @@ def render_company_deep_dive(data: dict):
     filings_df = data["filings"]
     activities_df = data["activities"]
 
-    # Company selector
-    companies = sorted(positions_df["submitter_name"].unique())
+    # Company selector - sorted by type (ai_lab first, then big_tech, then trade_group)
+    type_sort_order = {"ai_lab": 1, "big_tech": 2, "trade_group": 3}
+    company_names = positions_df["submitter_name"].unique()
+
+    # Get company types from discrepancy or impact scores
+    company_types = {}
+    if not discrepancy_df.empty:
+        company_types = dict(zip(discrepancy_df["company_name"], discrepancy_df["company_type"]))
+    elif not impact_df.empty:
+        company_types = dict(zip(impact_df["company_name"], impact_df["company_type"]))
+
+    # Sort: by type order first, then alphabetically within each type
+    companies = sorted(
+        company_names,
+        key=lambda x: (type_sort_order.get(company_types.get(x, ""), 4), x)
+    )
     default_idx = companies.index("OpenAI") if "OpenAI" in companies else 0
     selected_company = st.selectbox("Select Company", companies, index=default_idx)
 
@@ -206,9 +224,12 @@ def render_company_deep_dive(data: dict):
     col1, col2, col3, col4 = st.columns(4)
 
     # Get scores for this company
-    company_discrepancy = discrepancy_df[discrepancy_df["company_name"] == selected_company]
-    company_impact = impact_df[impact_df["company_name"] == selected_company]
-    company_china = china_df[china_df["company_name"] == selected_company]
+    # Convert submitter_name to canonical name for matching scores
+    # (e.g., "Anthropic-AI" -> "Anthropic")
+    canonical_name = get_canonical_name(selected_company)
+    company_discrepancy = discrepancy_df[discrepancy_df["company_name"] == canonical_name]
+    company_impact = impact_df[impact_df["company_name"] == canonical_name]
+    company_china = china_df[china_df["company_name"] == canonical_name]
     company_positions = positions_df[positions_df["submitter_name"] == selected_company]
 
     with col1:
@@ -440,7 +461,7 @@ def render_cross_company_comparison(data: dict):
 
         # Scatter plot: Concern vs Discrepancy
         st.subheader("Concern vs. Discrepancy")
-        st.caption("Who's concerning AND hypocritical?")
+        st.caption("Who's concerning AND hypocritical? Hover for details.")
 
         if not discrepancy_df.empty and not impact_df.empty:
             merged = discrepancy_df.merge(
@@ -450,23 +471,47 @@ def render_cross_company_comparison(data: dict):
             )
 
             if not merged.empty:
-                fig = px.scatter(
-                    merged,
-                    x="concern_score",
-                    y="discrepancy_score",
-                    text="company_name",
-                    color="company_type",
-                    size_max=15
-                )
-                fig.update_traces(textposition="top center")
+                import numpy as np
+
+                # Add jitter to separate overlapping points
+                np.random.seed(42)  # Reproducible jitter
+                merged = merged.copy()
+                merged["concern_jittered"] = merged["concern_score"] + np.random.uniform(-3, 3, len(merged))
+                merged["discrepancy_jittered"] = merged["discrepancy_score"] + np.random.uniform(-2, 2, len(merged))
+
+                # Assign text positions to spread labels out
+                # Cycle through positions based on row index
+                positions = ["top center", "bottom center", "top right", "bottom left",
+                             "top left", "bottom right", "middle right", "middle left"]
+                merged["text_position"] = [positions[i % len(positions)] for i in range(len(merged))]
+
+                fig = go.Figure()
+
+                # Add points by company type for legend
+                for company_type in merged["company_type"].unique():
+                    df_type = merged[merged["company_type"] == company_type]
+                    fig.add_trace(go.Scatter(
+                        x=df_type["concern_jittered"],
+                        y=df_type["discrepancy_jittered"],
+                        mode="markers+text",
+                        name=company_type,
+                        text=df_type["company_name"],
+                        textposition=df_type["text_position"].tolist(),
+                        textfont=dict(size=10),
+                        marker=dict(size=14),
+                        hovertemplate="<b>%{text}</b><br>" +
+                                      "Concern: %{customdata[0]}<br>" +
+                                      "Discrepancy: %{customdata[1]}<br>" +
+                                      "Type: " + company_type + "<extra></extra>",
+                        customdata=list(zip(df_type["concern_score"], df_type["discrepancy_score"]))
+                    ))
+
                 fig.update_layout(
-                    height=500,
+                    height=550,
                     xaxis_title="Concern Score (0=aligned, 100=concerning)",
-                    yaxis_title="Discrepancy Score (0=consistent, 100=hypocrite)"
+                    yaxis_title="Discrepancy Score (0=consistent, 100=hypocrite)",
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02)
                 )
-                # Add quadrant lines
-                fig.add_hline(y=50, line_dash="dash", line_color="gray", opacity=0.5)
-                fig.add_vline(x=50, line_dash="dash", line_color="gray", opacity=0.5)
 
                 st.plotly_chart(fig, use_container_width=True)
 
@@ -569,7 +614,19 @@ def render_position_explorer(data: dict):
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        companies = ["All"] + sorted(positions_df["submitter_name"].unique().tolist())
+        # Sort companies by type (ai_lab first, then big_tech, then trade_group)
+        type_sort_order = {"ai_lab": 1, "big_tech": 2, "trade_group": 3}
+        discrepancy_df = data.get("discrepancy_scores", pd.DataFrame())
+        company_types = {}
+        if not discrepancy_df.empty:
+            company_types = dict(zip(discrepancy_df["company_name"], discrepancy_df["company_type"]))
+
+        company_names = positions_df["submitter_name"].unique().tolist()
+        sorted_companies = sorted(
+            company_names,
+            key=lambda x: (type_sort_order.get(company_types.get(x, ""), 4), x)
+        )
+        companies = ["All"] + sorted_companies
         selected_company = st.selectbox("Company", companies, key="explorer_company")
 
     with col2:
@@ -660,9 +717,39 @@ def render_methodology():
     st.header("Methodology")
     st.markdown("How we analyze AI company policy positions and lobbying activity.")
 
-    tab1, tab2, tab3, tab4 = st.tabs(["Policy Asks", "Arguments", "Scoring", "Data Sources"])
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["Entity Types", "Policy Asks", "Arguments", "Scoring", "Data Sources"])
 
     with tab1:
+        st.subheader("Entity Type Classification")
+        st.markdown("We classify submitters into three main categories to understand different incentive structures.")
+
+        st.markdown("### Definitions")
+
+        entity_types = {
+            "AI Lab": "**Pure-play AI companies** whose core business is developing AI models and systems. These companies have the most direct stake in AI regulation since it affects their primary product. *Examples: OpenAI, Anthropic, Cohere, Mistral*",
+            "Big Tech": "**Diversified technology giants** where AI is one of many business lines. These companies may have conflicting internal interests—for example, Amazon's cloud AI business vs. their content/media businesses on copyright issues. *Examples: Google, Amazon, Microsoft, Apple, Meta*",
+            "Trade Group": "**Industry associations** that represent multiple member companies collectively. Trade groups are not companies—they advocate on behalf of their members' shared interests. *Examples: U.S. Chamber of Commerce, TechNet, CCIA, BSA*",
+        }
+
+        for entity_type, definition in entity_types.items():
+            st.markdown(f"**{entity_type}**: {definition}")
+
+        st.divider()
+
+        st.markdown("### Why Trade Groups Matter")
+        st.markdown("""
+Trade groups deserve special attention in lobbying analysis because:
+
+1. **Collective Voice**: Organizations like the U.S. Chamber of Commerce represent hundreds of member companies speaking with one voice
+
+2. **Deniable Advocacy**: Trade groups often advocate more aggressive positions than individual member companies would state publicly, allowing members to benefit without direct attribution
+
+3. **Lowest Common Denominator**: Trade group positions typically represent what all members can agree on, which often skews toward deregulation
+
+**Example**: A tech company might publicly support "responsible AI regulation" while their trade group simultaneously lobbies against specific accountability measures. This project's discrepancy analysis attempts to surface these gaps.
+        """)
+
+    with tab2:
         st.subheader("Policy Ask Taxonomy")
         st.markdown("Policy asks are specific things companies want the government to do (or not do).")
 
@@ -742,7 +829,7 @@ def render_methodology():
             for ask, desc in res_asks.items():
                 st.markdown(f"• `{ask}`: {desc}")
 
-    with tab2:
+    with tab3:
         st.subheader("Argument Types")
         st.markdown("Arguments are HOW companies justify their policy asks.")
 
@@ -790,7 +877,7 @@ def render_methodology():
             for arg, desc in rights_args.items():
                 st.markdown(f"• `{arg}`: {desc}")
 
-    with tab3:
+    with tab4:
         st.subheader("How Scores Are Calculated")
 
         st.markdown("### Discrepancy Score (0-100)")
@@ -837,7 +924,7 @@ def render_methodology():
         avoid regulation. High intensity + low substantiation = potential red flag.
         """)
 
-    with tab4:
+    with tab5:
         st.subheader("Data Sources")
 
         st.markdown("### AI Action Plan RFI Submissions")
@@ -855,6 +942,30 @@ def render_methodology():
         - **Filter:** 2023+ filings, AI-relevant issue codes (CPI, SCI, CPT, CSP, DEF, HOM)
         - **URL:** [LDA Senate API](https://lda.senate.gov/api/)
         """)
+
+        st.divider()
+
+        st.markdown("### Why Compare These Two Sources?")
+        st.markdown("""
+        These data sources reveal fundamentally different things:
+
+        | Source | What It Reveals | Enforcement |
+        |--------|-----------------|-------------|
+        | **RFI Submissions** | What companies are *willing to say publicly* | None - advisory only |
+        | **LDA Filings** | What companies are *actually paying to influence* | Mandatory disclosure |
+
+        **RFI comments are PR.** Anyone can submit. Agencies "consider" them but aren't bound by them.
+        They're a company's public face—what they want you to think they believe.
+
+        **Lobbying is action.** Companies spend $10-100M+ annually on lobbyists because it *works*.
+        LDA filings reveal where the money actually goes.
+
+        **The insight:** When these diverge, that's the story. A company saying "we support AI safety"
+        while spending millions lobbying against safety regulations reveals the gap between
+        rhetoric and reality. That gap is what this dashboard measures.
+        """)
+
+        st.divider()
 
         st.markdown("### LLM Analysis")
         st.markdown("""
@@ -917,54 +1028,153 @@ def render_bill_analysis(data: dict):
     tab1, tab2, tab3 = st.tabs(["Lobbying vs Positions", "Quiet Lobbying Leaderboard", "Bill Details"])
 
     with tab1:
-        st.subheader("Bills Ranked by Lobbying Activity")
-        st.caption("Compare lobbying intensity to public positions taken")
+        # First chart: Total lobbying filings by bill
+        st.subheader("Lobbying Volume by Bill")
+        st.caption("Total lobbying filings per bill (sorted by volume)")
 
-        # Sort by lobbying count
-        chart_df = bill_df[bill_df["lobbying_filing_count"] > 0].sort_values("lobbying_filing_count", ascending=True).copy()
+        filings_df = bill_df[bill_df["lobbying_filing_count"] > 0].copy()
+        filings_df = filings_df.sort_values("lobbying_filing_count", ascending=True)
+
+        if not filings_df.empty:
+            fig_volume = px.bar(
+                filings_df,
+                x="lobbying_filing_count",
+                y="bill_name",
+                orientation="h",
+                labels={"lobbying_filing_count": "Total Filings", "bill_name": ""},
+                color="lobbying_filing_count",
+                color_continuous_scale=["#fee8c8", "#e34a33"],
+            )
+            fig_volume.update_layout(
+                height=350,
+                showlegend=False,
+                coloraxis_showscale=False,
+                xaxis_title="Total Lobbying Filings"
+            )
+            st.plotly_chart(fig_volume, use_container_width=True)
+
+            # Summary stat
+            total_filings = filings_df["lobbying_filing_count"].sum()
+            top_bill = filings_df.iloc[-1]  # Last row after ascending sort = highest
+            st.info(f"**{total_filings} total lobbying filings** across {len(filings_df)} bills. **{top_bill['bill_name']}** has the most activity with {top_bill['lobbying_filing_count']} filings.")
+
+        st.divider()
+
+        # Second chart: Who's lobbying quietly
+        st.subheader("Who's Lobbying Quietly?")
+        st.caption("Companies lobbying WITH vs WITHOUT a public position on that bill")
+
+        chart_df = bill_df[bill_df["lobbying_filing_count"] > 0].copy()
+
+        # Normalize company names for matching (LDA uses "MICROSOFT CORPORATION", RFI uses "Microsoft-AI")
+        def normalize_name(name):
+            """Normalize company name to canonical form for matching."""
+            if not name:
+                return ""
+            n = name.lower().strip()
+            for suffix in [", inc.", ", inc", " inc.", " inc", " corporation", " corp.", " corp",
+                          " llc", ", llc", " l.l.c.", " plc", ", plc", " technologies",
+                          " platforms", "-ai", "_ai", " ai"]:
+                if n.endswith(suffix):
+                    n = n[:-len(suffix)].strip()
+            n = n.replace(",", "").replace(".", "").replace("(", "").replace(")", "")
+            mappings = {
+                "meta": "meta",
+                "meta platforms": "meta",
+                "google": "google",
+                "google llc": "google",
+                "microsoft": "microsoft",
+                "intel": "intel",
+                "intel corporation": "intel",
+                "amazon": "amazon",
+                "amazoncom": "amazon",
+                "anthropic": "anthropic",
+                "anthropic pbc": "anthropic",
+                "openai": "openai",
+                "openai opco": "openai",
+                "technet": "technet",
+                "technology network": "technet",
+                "technology network aka technet": "technet",
+                "workday": "workday",
+                "cloudflare": "cloudflare",
+            }
+            if n in mappings:
+                return mappings[n]
+            for key, val in mappings.items():
+                if key in n or n in key:
+                    return val
+            return n
+
+        def normalize_set(names):
+            return {normalize_name(n) for n in names if n}
+
+        def get_position_companies(row):
+            return normalize_set(row["supporting_list"]) | normalize_set(row["opposing_list"])
+
+        def get_lobbying_set(row):
+            return normalize_set(row["lobbying_companies_list"])
+
+        chart_df["position_companies"] = chart_df.apply(get_position_companies, axis=1)
+        chart_df["lobbying_set"] = chart_df.apply(get_lobbying_set, axis=1)
+
+        chart_df["lobbied_with_position"] = chart_df.apply(
+            lambda r: r["lobbying_set"] & r["position_companies"], axis=1
+        )
+        chart_df["lobbied_quietly"] = chart_df.apply(
+            lambda r: r["lobbying_set"] - r["position_companies"], axis=1
+        )
+
+        chart_df["n_lobbying_companies"] = chart_df["lobbying_set"].apply(len)
+        chart_df["n_with_position"] = chart_df["lobbied_with_position"].apply(len)
+        chart_df["n_quiet"] = chart_df["lobbied_quietly"].apply(len)
+
+        chart_df = chart_df.sort_values("lobbying_filing_count", ascending=True)  # Sort by filings to match chart above
 
         if not chart_df.empty:
-            # Create bar chart
             fig = go.Figure()
 
-            # Lobbying filings bar
             fig.add_trace(go.Bar(
                 y=chart_df["bill_name"],
-                x=chart_df["lobbying_filing_count"],
-                name="Lobbying Filings",
+                x=chart_df["n_with_position"],
+                name="Lobbied + Took Public Position",
                 orientation="h",
-                marker_color="#1f77b4"
+                marker_color="#2ca02c",
+                hovertemplate="%{y}<br>%{x} companies lobbied AND took public position<extra></extra>"
             ))
 
-            # Public positions bar
             fig.add_trace(go.Bar(
                 y=chart_df["bill_name"],
-                x=chart_df["position_count"],
-                name="Public Positions",
+                x=chart_df["n_quiet"],
+                name="Lobbied Quietly (no public position)",
                 orientation="h",
-                marker_color="#2ca02c"
+                marker_color="#d62728",
+                hovertemplate="%{y}<br>%{x} companies lobbied WITHOUT public position<extra></extra>"
             ))
+
+            max_x = max(
+                chart_df["n_with_position"].max(),
+                chart_df["n_quiet"].max()
+            )
 
             fig.update_layout(
                 height=400,
                 barmode="group",
-                legend=dict(orientation="h", yanchor="bottom", y=1.02),
-                xaxis_title="Count",
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, title=""),
+                xaxis_title="Number of Companies",
+                xaxis=dict(
+                    dtick=1,
+                    tick0=0,
+                    range=[0, max_x + 1]
+                ),
                 yaxis_title=""
             )
 
             st.plotly_chart(fig, use_container_width=True)
 
-            # Highlight key finding
-            section_230 = chart_df[chart_df["bill_id"] == "section_230"]
-            if not section_230.empty:
-                row = section_230.iloc[0]
-                st.error(f"**Section 230:** {row['lobbying_filing_count']} lobbying filings, {row['position_count']} public positions - Pure 'quiet lobbying'")
-
-            chips = chart_df[chart_df["bill_id"] == "chips_act"]
-            if not chips.empty:
-                row = chips.iloc[0]
-                st.warning(f"**CHIPS Act:** {row['lobbying_filing_count']} lobbying filings, {row['position_count']} public positions - Mostly quiet")
+            total_quiet = chart_df["n_quiet"].sum()
+            total_lobbying = chart_df["n_lobbying_companies"].sum()
+            quiet_pct = (total_quiet / total_lobbying * 100) if total_lobbying > 0 else 0
+            st.info(f"**{quiet_pct:.0f}% of company-bill lobbying is 'quiet'** — {total_quiet} of {total_lobbying} company-bill pairs had no public position on that specific bill.")
 
     with tab2:
         st.subheader("Quiet Lobbying Leaderboard")
