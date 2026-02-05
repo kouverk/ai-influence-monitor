@@ -9,6 +9,14 @@ A Streamlit dashboard visualizing:
 - Discrepancies between public statements and lobbying behavior
 """
 
+import sys
+from pathlib import Path
+
+# Add dashboard directory to path for imports (needed for Streamlit Cloud)
+dashboard_dir = Path(__file__).parent
+if str(dashboard_dir) not in sys.path:
+    sys.path.insert(0, str(dashboard_dir))
+
 import streamlit as st
 import pandas as pd
 import plotly.express as px
