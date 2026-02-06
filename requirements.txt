@@ -10,4 +10,3 @@ dbt-snowflake>=1.7.0
 streamlit>=1.32.0
 plotly>=5.18.0
 
-astro-run-dag # This package is needed for the astro run command. It will be removed before a deploy

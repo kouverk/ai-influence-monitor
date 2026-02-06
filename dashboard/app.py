@@ -1352,7 +1352,6 @@ def main():
     st.sidebar.markdown("• Senate LDA lobbying disclosures (2023+)")
 
     st.sidebar.divider()
-    st.sidebar.caption("Built for DataExpert.io Capstone")
 
     # Render selected page
     if page == "Executive Summary":
