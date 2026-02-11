@@ -283,6 +283,70 @@ Scoring: 0=minimal China framing, 100=heavy reliance on China rhetoric
 
 ---
 
+## Scoring Methodology
+
+### Discrepancy Score (0-100)
+
+The discrepancy score measures the gap between what companies **say publicly** vs. what they **lobby for**.
+
+**Inputs:**
+```
+Public Positions (from ai_positions):
+- policy_ask: what they want (e.g., "federal_preemption")
+- stance: support/oppose
+- primary_argument: why they claim to want it
+- target: specific bill/regulation
+
+Lobbying Activity (from lda_activities):
+- general_issue_code: what they're lobbying on
+- specific_lobbying_issues: actual bills mentioned
+- client_name: who's paying
+```
+
+**Scoring Logic (LLM-assessed):**
+
+| Score Range | Interpretation | Example |
+|-------------|----------------|---------|
+| 0-20 | Highly consistent | Positions align with lobbying focus |
+| 21-40 | Minor gaps | Some lobbying on issues not publicly discussed |
+| 41-60 | Moderate discrepancy | Lobbying priorities differ from public messaging |
+| 61-80 | Significant gaps | Lobbying contradicts stated positions |
+| 81-100 | Maximum hypocrisy | Public statements opposite of lobbying activity |
+
+**Key Factors Influencing Score:**
+1. **Topic mismatch**: Lobbying on antitrust while public positions focus on AI safety
+2. **Stance contradiction**: Supporting regulation publicly, lobbying against it
+3. **Volume asymmetry**: Heavy lobbying on issues with zero public positions ("quiet lobbying")
+4. **Timing gaps**: Recent lobbying contradicts older public statements
+
+**Example Analysis (Google, score: 72/100):**
+```
+Public positions: AI safety, responsible development
+Lobbying focus: Antitrust defense, government procurement, Section 230
+Gap: Safety messaging doesn't match lobbying priorities
+```
+
+### Concern Score (0-100)
+
+Measures **public interest implications** of a company's lobbying agenda.
+
+**Factors:**
+- Self-serving vs. public-interest alignment
+- Accountability stance (liability shields, audit exemptions)
+- Regulatory capture signals
+- Who benefits vs. who's harmed
+
+### China Rhetoric Intensity (0-100)
+
+Measures **reliance on China competition framing** to justify policy positions.
+
+**Factors:**
+- % of positions using china_competition argument
+- Specificity of claims (concrete vs. vague fear-mongering)
+- Correlation with deregulation asks
+
+---
+
 ## API Endpoints Reference
 
 ### Federal Register

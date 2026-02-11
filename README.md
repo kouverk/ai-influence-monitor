@@ -140,6 +140,18 @@ Identifies companies that heavily lobby on legislation without taking public pos
 | **Dashboard** | Streamlit | Rapid prototyping; native Python; free cloud hosting; interactive without JavaScript |
 | **Language** | Python | Ecosystem support for all components; team familiarity |
 
+**LLM Cost Estimates (Claude Sonnet):**
+| Script | API Calls | Est. Cost |
+|--------|-----------|-----------|
+| Position extraction (30 companies, 112 chunks) | 112 | ~$2.50 |
+| Lobbying impact assessment (23 companies) | 23 | ~$1.00 |
+| Discrepancy detection (23 companies) | 23 | ~$1.00 |
+| China rhetoric analysis (14 companies) | 14 | ~$0.60 |
+| Cross-company comparison | 1 | ~$0.15 |
+| **Total for sample** | **173** | **~$5.25** |
+
+Full 10K document processing would cost ~$150-200 at current rates.
+
 ---
 
 ## Project Structure
@@ -212,6 +224,13 @@ streamlit run dashboard/app.py
 | [AI Action Plan Submissions](https://www.nitrd.gov/coordination-areas/ai/90-fr-9088-responses/) | Bulk PDF | 10,068 policy submissions to Trump admin |
 | [Senate LDA API](https://lda.senate.gov/api/v1/) | REST API | Lobbying disclosure filings |
 
+**Data Licensing & Attribution:**
+- **AI Action Plan RFI:** Public government records from [Federal Register 90 FR 9088](https://www.federalregister.gov/documents/2025/02/06/2025-02305/request-for-information-on-the-development-of-an-artificial-intelligence-action-plan) (Feb 2025). Responses collected by NITRD/OSTP.
+- **Senate LDA:** Public lobbying disclosures per the Lobbying Disclosure Act of 1995. Data accessed via the [Senate Office of Public Records API](https://lda.senate.gov/api/).
+
+**Sampling Approach:**
+The full dataset contains 10,068 submissions. For this capstone, we prioritized **30 companies** representing AI labs (OpenAI, Anthropic, Google DeepMind), big tech (Microsoft, Amazon, Meta), and trade groups (CCIA, TechNet, US Chamber). This focused sample enables deep analysis while remaining within LLM API cost constraints. The pipeline is designed to scale to all 10K documents.
+
 ---
 
 ## Challenges & Solutions
@@ -248,7 +267,8 @@ A key finding: Companies use "China competition" rhetoric strategically in polic
 |------|---------|
 | [CLAUDE.md](CLAUDE.md) | Project overview, current state, session log |
 | [docs/DATA_DICTIONARY.md](docs/DATA_DICTIONARY.md) | Tables, columns, data sources |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System design, DAG structure, prompts |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System design, DAG structure, prompts, scoring methodology |
+| [docs/DATA_QUALITY.md](docs/DATA_QUALITY.md) | Data quality checks (35 dbt tests + Python validation) |
 | [docs/INSIGHTS.md](docs/INSIGHTS.md) | Findings and observations |
 
 ---
