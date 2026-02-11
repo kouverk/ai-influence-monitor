@@ -129,16 +129,16 @@ Identifies companies that heavily lobby on legislation without taking public pos
 
 ## Tech Stack
 
-| Component | Technology |
-|-----------|------------|
-| **Orchestration** | Airflow (Astronomer) |
-| **Data Lake** | Apache Iceberg + AWS S3 |
-| **Warehouse** | Snowflake |
-| **Transformation** | dbt |
-| **LLM** | Claude API (Anthropic) |
-| **PDF Processing** | PyMuPDF |
-| **Dashboard** | Streamlit |
-| **Language** | Python |
+| Component | Technology | Why This Choice |
+|-----------|------------|-----------------|
+| **Orchestration** | Airflow (Astronomer) | Industry standard for data pipelines; managed deployment via Astronomer simplifies ops |
+| **Data Lake** | Apache Iceberg + AWS S3 | Schema evolution support crucial for iterating on LLM extraction schemas; ACID transactions for reliable incremental loads |
+| **Warehouse** | Snowflake | Handles semi-structured JSON from LLM outputs natively; scales for future expansion to 10K+ documents |
+| **Transformation** | dbt | Version-controlled SQL transformations; built-in testing framework for data quality; clear lineage |
+| **LLM** | Claude API (Anthropic) | Best-in-class for structured extraction tasks; reliable JSON output; 200K context window handles long policy documents |
+| **PDF Processing** | PyMuPDF | Fast, reliable text extraction; handles government PDF formatting quirks better than alternatives tested |
+| **Dashboard** | Streamlit | Rapid prototyping; native Python; free cloud hosting; interactive without JavaScript |
+| **Language** | Python | Ecosystem support for all components; team familiarity |
 
 ---
 
@@ -214,6 +214,19 @@ streamlit run dashboard/app.py
 
 ---
 
+## Challenges & Solutions
+
+| Challenge | Solution |
+|-----------|----------|
+| **Entity matching across datasets** | RFI submissions use "Anthropic-AI", LDA uses "ANTHROPIC, PBC". Built normalization layer with canonical name mappings in `config.py` |
+| **LLM output consistency** | Claude sometimes returns varied JSON structures. Added Pydantic validation and retry logic with structured prompts |
+| **Taxonomy iteration** | Initial policy_ask codes were too broad. Iterated through 3 versions, expanding from 12 to 30+ codes based on actual document content |
+| **Duplicate detection** | Same company files multiple lobbying reports and through subsidiaries. Added ROW_NUMBER() deduplication in staging models |
+| **"Quiet lobbying" definition** | Needed to match companies across bill mentions in LDA vs explicit positions in RFI. Built bill-level coalition analysis with fuzzy name matching |
+| **Score clustering** | LLM naturally rounds scores to multiples of 25. Updated prompts to explicitly request granular scoring (23, 47, 68 vs 25, 50, 75) |
+
+---
+
 ## The China Rhetoric Analysis
 
 A key finding: Companies use "China competition" rhetoric strategically in policy arguments.
@@ -259,7 +272,19 @@ A key finding: Companies use "China competition" rhetoric strategically in polic
 - [x] Airflow DAGs (6 DAGs)
 - [x] Streamlit dashboard
 - [x] Deploy dashboard publicly
-- [ ] Process remaining 9,900+ documents
+
+---
+
+## Future Enhancements
+
+| Enhancement | Value | Effort |
+|-------------|-------|--------|
+| **Process all 10,000+ submissions** | Complete industry coverage, not just priority companies | Medium - just compute/API cost |
+| **Add FEC campaign finance data** | Correlate lobbying positions with political donations | Medium - new data source integration |
+| **Temporal analysis** | Track how company positions shift over time as regulations evolve | Low - data already timestamped |
+| **Trade group membership mapping** | Explicitly link companies to their trade group advocacy | Medium - requires external data |
+| **Automated alerts** | Notify when new lobbying filings contradict stated positions | Medium - add monitoring DAG |
+| **Fine-tuned extraction model** | Reduce Claude API costs by training smaller model on extracted positions | High - ML pipeline |
 
 ---
 
