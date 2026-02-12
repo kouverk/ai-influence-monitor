@@ -12,18 +12,18 @@ Detailed technical reference for the AI Influence Tracker. **Read this when you 
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                         EXTRACT LAYER (to Iceberg)                   │
+│                         EXTRACT LAYER (to Iceberg)                  │
 ├─────────────────────────────────────────────────────────────────────┤
-│  Scripts (include/scripts/extraction/):                              │
-│  - extract_pdf_submissions.py  → ai_submissions_metadata/text/chunks │
+│  Scripts (include/scripts/extraction/):                             │
+│  - extract_pdf_submissions.py  → ai_submissions_metadata/text/chunks│
 │  - extract_lda_filings.py      → lda_filings/activities/lobbyists   │
 └─────────────────────────────────────────────────────────────────────┘
                                 │
                                 ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│                    LLM ANALYSIS LAYER (Agentic)                      │
+│                    LLM ANALYSIS LAYER (Agentic)                     │
 ├─────────────────────────────────────────────────────────────────────┤
-│  Scripts (include/scripts/agentic/):                                 │
+│  Scripts (include/scripts/agentic/):                                │
 │  - extract_positions.py         → ai_positions (878 rows)           │
 │  - assess_lobbying_impact.py    → lobbying_impact_scores (23 rows)  │
 │  - detect_discrepancies.py      → discrepancy_scores (23 rows)      │
@@ -34,47 +34,47 @@ Detailed technical reference for the AI Influence Tracker. **Read this when you 
                                 │
                                 ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│                   LOAD LAYER (Iceberg → Snowflake)                   │
+│                   LOAD LAYER (Iceberg → Snowflake)                  │
 ├─────────────────────────────────────────────────────────────────────┤
-│  Script: export_to_snowflake.py                                      │
+│  Script: export_to_snowflake.py                                     │
 │  - Exports all 10 Iceberg tables to Snowflake RAW_* tables          │
-│  - Full refresh (truncate + reload)                                  │
-│  - Total: 26,567 rows across all tables                              │
+│  - Full refresh (truncate + reload)                                 │
+│  - Total: 26,567 rows across all tables                             │
 └─────────────────────────────────────────────────────────────────────┘
                                 │
                                 ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│                      TRANSFORM LAYER (dbt)                           │
+│                      TRANSFORM LAYER (dbt)                          │
 ├─────────────────────────────────────────────────────────────────────┤
-│  Staging (10 views in KOUVERK_AI_INFLUENCE_STAGING):                 │
-│  - stg_ai_positions, stg_ai_submissions                              │
+│  Staging (10 views in KOUVERK_AI_INFLUENCE_STAGING):                │
+│  - stg_ai_positions, stg_ai_submissions                             │
 │  - stg_lda_filings, stg_lda_activities, stg_lda_lobbyists           │
 │  - stg_lobbying_impact_scores, stg_discrepancy_scores               │
-│  - stg_china_rhetoric, stg_position_comparisons                      │
-│  - stg_bill_position_analysis                                        │
-│                                                                      │
-│  Marts (6 tables in KOUVERK_AI_INFLUENCE_MARTS):                     │
-│  - dim_company (84 companies)                                        │
-│  - fct_policy_positions (878 positions)                              │
-│  - fct_lobbying_quarterly (970 filings)                              │
-│  - fct_lobbying_impact (23 scores)                                   │
-│  - fct_company_analysis (30 companies with all scores)               │
-│  - fct_bill_coalitions (21 bills)                                    │
+│  - stg_china_rhetoric, stg_position_comparisons                     │
+│  - stg_bill_position_analysis                                       │
+│                                                                     │
+│  Marts (6 tables in KOUVERK_AI_INFLUENCE_MARTS):                    │
+│  - dim_company (84 companies)                                       │
+│  - fct_policy_positions (878 positions)                             │
+│  - fct_lobbying_quarterly (970 filings)                             │
+│  - fct_lobbying_impact (23 scores)                                  │
+│  - fct_company_analysis (30 companies with all scores)              │
+│  - fct_bill_coalitions (21 bills)                                   │
 └─────────────────────────────────────────────────────────────────────┘
                                 │
                                 ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│                      VISUALIZATION LAYER                             │
+│                      VISUALIZATION LAYER                            │
 ├─────────────────────────────────────────────────────────────────────┤
-│  Streamlit Dashboard (dashboard/app.py):                             │
-│  - Executive Summary: Key findings and scores                        │
-│  - Company Deep Dive: Per-company analysis                           │
-│  - Cross-Company Comparison: Position patterns                       │
-│  - Bill-Level Analysis: Quiet lobbying detection                     │
-│  - Position Explorer: Browse all positions                           │
-│  - Methodology: Data sources and approach                            │
-│                                                                      │
-│  Data: Reads from Snowflake dbt staging views                        │
+│  Streamlit Dashboard (dashboard/app.py):                            │
+│  - Executive Summary: Key findings and scores                       │
+│  - Company Deep Dive: Per-company analysis                          │
+│  - Cross-Company Comparison: Position patterns                      │
+│  - Bill-Level Analysis: Quiet lobbying detection                    │
+│  - Position Explorer: Browse all positions                          │
+│  - Methodology: Data sources and approach                           │
+│                                                                     │
+│  Data: Reads from Snowflake dbt staging views                       │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
