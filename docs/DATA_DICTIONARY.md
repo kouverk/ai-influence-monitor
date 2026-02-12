@@ -3,7 +3,6 @@
 Reference for all tables, columns, and data sources in this project.
 
 **Related docs:**
-- [CLAUDE.md](../CLAUDE.md) - Project overview, current state, next steps
 - [ARCHITECTURE.md](ARCHITECTURE.md) - System design, DAG structure, prompts
 - [INSIGHTS.md](INSIGHTS.md) - Findings and observations
 

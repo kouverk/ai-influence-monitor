@@ -267,7 +267,6 @@ A key finding: Companies use "China competition" rhetoric strategically in polic
 
 | File | Purpose |
 |------|---------|
-| [CLAUDE.md](CLAUDE.md) | Project overview, current state, session log |
 | [docs/DATA_DICTIONARY.md](docs/DATA_DICTIONARY.md) | Tables, columns, data sources |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System design, DAG structure, prompts, scoring methodology |
 | [docs/DATA_QUALITY.md](docs/DATA_QUALITY.md) | Data quality checks (35 dbt tests + Python validation) |

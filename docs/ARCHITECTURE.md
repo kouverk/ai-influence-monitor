@@ -3,7 +3,6 @@
 Detailed technical reference for the AI Influence Tracker. **Read this when you need implementation details.**
 
 **Related docs:**
-- [CLAUDE.md](../CLAUDE.md) - Project overview, current state, next steps
 - [DATA_DICTIONARY.md](DATA_DICTIONARY.md) - Tables, columns, data sources
 - [INSIGHTS.md](INSIGHTS.md) - Findings and observations
 
@@ -603,7 +602,6 @@ REGULATIONS_GOV_API_KEY=        # Future: for regulations.gov API
 
 ```
 ai-influence-monitor/
-├── CLAUDE.md                    # Quick context (overview, status, next steps)
 ├── docs/
 │   ├── DATA_DICTIONARY.md       # Tables, columns, sources
 │   ├── ARCHITECTURE.md          # This file - detailed reference

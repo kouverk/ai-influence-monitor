@@ -3,7 +3,6 @@
 Observations discovered during exploration. Add to this as you find interesting things.
 
 **Related docs:**
-- [CLAUDE.md](../CLAUDE.md) - Project overview, current state, next steps
 - [ARCHITECTURE.md](ARCHITECTURE.md) - System design, DAG structure, prompts
 - [DATA_DICTIONARY.md](DATA_DICTIONARY.md) - Tables, columns, data sources
 
