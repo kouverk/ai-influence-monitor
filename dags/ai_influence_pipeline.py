@@ -176,7 +176,7 @@ with DAG(
 
         run_dbt = BashOperator(
             task_id='run_dbt',
-            bash_command=f'cd {AIRFLOW_HOME}/dbt/ai_influence && dbt run',
+            bash_command=f'cd {AIRFLOW_HOME}/dbt && dbt run',
             doc="""
             Run dbt models to build staging views and mart tables.
             """,
@@ -184,7 +184,7 @@ with DAG(
 
         test_dbt = BashOperator(
             task_id='test_dbt',
-            bash_command=f'cd {AIRFLOW_HOME}/dbt/ai_influence && dbt test',
+            bash_command=f'cd {AIRFLOW_HOME}/dbt && dbt test',
             doc="""
             Run dbt tests to validate data quality.
             """,

@@ -45,12 +45,12 @@ with DAG(
 
     run_dbt = BashOperator(
         task_id='run_dbt',
-        bash_command=f'cd {AIRFLOW_HOME}/dbt/ai_influence && dbt run',
+        bash_command=f'cd {AIRFLOW_HOME}/dbt && dbt run',
     )
 
     test_dbt = BashOperator(
         task_id='test_dbt',
-        bash_command=f'cd {AIRFLOW_HOME}/dbt/ai_influence && dbt test',
+        bash_command=f'cd {AIRFLOW_HOME}/dbt && dbt test',
     )
 
     export_to_snowflake >> run_dbt >> test_dbt

@@ -220,7 +220,7 @@ export SNOWFLAKE_DATABASE=...
 export SNOWFLAKE_SCHEMA=...
 
 # Run all tests
-cd dbt/ai_influence
+cd dbt
 dbt test --profiles-dir .
 
 # Run specific test

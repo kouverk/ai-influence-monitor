@@ -175,7 +175,7 @@ ai-influence-monitor/
 │   ├── app.py
 │   └── data_loader.py
 ├── dags/                        # 6 Airflow DAGs
-├── dbt/ai_influence/            # dbt project (10 staging + 6 marts)
+├── dbt/                         # dbt project (10 staging + 6 marts)
 ├── data/                        # Downloaded PDFs (gitignored)
 └── .env                         # Config (AWS, Snowflake, Anthropic)
 ```
@@ -211,7 +211,7 @@ python include/scripts/agentic/analyze_china_rhetoric.py --fresh
 
 # Export to Snowflake and run dbt
 python include/scripts/utils/export_to_snowflake.py
-cd dbt/ai_influence && dbt run && dbt test
+cd dbt && dbt run && dbt test
 
 # Launch dashboard
 streamlit run dashboard/app.py

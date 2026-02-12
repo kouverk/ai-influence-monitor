@@ -76,7 +76,7 @@ astro dev start
 | Agentic scripts | `include/scripts/agentic/` |
 | Config (company lists) | `include/config.py` |
 | Airflow DAGs | `dags/` |
-| dbt project | `dbt/ai_influence/` |
+| dbt project | `dbt/` |
 | Credentials | `.env` |
 
 ---

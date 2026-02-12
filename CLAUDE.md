@@ -55,7 +55,7 @@ A document intelligence pipeline that:
 - Database: `DATAEXPERT_STUDENT.KOUVERK_AI_INFLUENCE`
 
 **5. dbt Models** ✅
-- Project: `dbt/ai_influence/`
+- Project: `dbt/`
 - 10 staging views (all source tables)
 - 6 mart tables including `fct_company_analysis` and `fct_bill_coalitions`
 - Tests on all primary keys
@@ -237,7 +237,7 @@ Score depth of policy engagement:
 - `include/scripts/agentic/` - LLM-powered analysis
 - `include/scripts/utils/` - Helpers (progress, export)
 - `dags/` - Airflow DAGs
-- `dbt/ai_influence/` - dbt project
+- `dbt/` - dbt project
 - `.env` - Credentials (AWS, Anthropic, Snowflake)
 
 **Config:**
