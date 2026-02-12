@@ -977,7 +977,7 @@ Trade groups deserve special attention in lobbying analysis because:
 
         st.markdown("### LLM Analysis")
         st.markdown("""
-        - **Model:** Claude claude-sonnet-4-20250514 (Anthropic)
+        - **Model:** claude-sonnet-4-20250514 (Anthropic)
         - **Tasks:** Position extraction, discrepancy detection, impact assessment
         - **Extraction:** 633 positions from 112 text chunks
         """)
