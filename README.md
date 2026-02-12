@@ -1,8 +1,10 @@
-# AI Influence Tracker
+# AI Influence Monitor
 
 **What AI Companies Say vs. What They Lobby For**
 
 A document intelligence pipeline that analyzes 10,000+ government policy submissions, extracts structured positions using LLMs, and compares them to federal lobbying disclosures to surface discrepancies between public statements and lobbying activity.
+
+**[Live Demo](https://ai-influence-monitor-kouverk.streamlit.app/)** - Try the dashboard
 
 ---
 
@@ -270,12 +272,6 @@ A key finding: Companies use "China competition" rhetoric strategically in polic
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System design, DAG structure, prompts, scoring methodology |
 | [docs/DATA_QUALITY.md](docs/DATA_QUALITY.md) | Data quality checks (35 dbt tests + Python validation) |
 | [docs/INSIGHTS.md](docs/INSIGHTS.md) | Findings and observations |
-
----
-
-## Live Demo
-
-**[AI Influence Tracker Dashboard](https://ai-influence-monitor-kouverk.streamlit.app/)**
 
 ---
 
